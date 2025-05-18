@@ -55,8 +55,8 @@ Faciliter la participation aux activités de l’association à travers une inte
 
 ## 👨‍💻 Développeur principal
 
-- Nom : [Ton nom ici]
-- Contact : [email ou lien GitHub]
+- Nom : SOGLOHOUN Samuel
+- Contact : soglohounsamuel2@gmail.com
 
 ---
 
