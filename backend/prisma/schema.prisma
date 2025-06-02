@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         Int       @id @default(autoincrement())
+  email      String    @unique
+  password   String
+  fullName   String
+  phone      String?
+  role       Role      @default(USER)
+  createdAt  DateTime  @default(now())
+  registrations Registration[]
+}
+
+model Activity {
+  id            Int           @id @default(autoincrement())
+  title         String
+  description   String
+  location      String
+  startDate     DateTime
+  endDate       DateTime
+  registrationDeadline DateTime
+  price         Float
+  createdAt     DateTime      @default(now())
+  registrations Registration[]
+}
+
+model Registration {
+  id          Int       @id @default(autoincrement())
+  user        User      @relation(fields: [userId], references: [id])
+  userId      Int
+  activity    Activity  @relation(fields: [activityId], references: [id])
+  activityId  Int
+  status      RegistrationStatus @default(PENDING)
+  paymentMode PaymentMode
+  paymentProof String?  // Transaction ID ou note pour paiement physique
+  createdAt   DateTime  @default(now())
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum RegistrationStatus {
+  PENDING
+  PAID
+  PHYSICAL
+}
+
+enum PaymentMode {
+  MOMO
+  FLUTTERWAVE
+  FEDAPAY
+  CINETPAY
+}
