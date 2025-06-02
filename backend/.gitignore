@@ -1,0 +1,10 @@
+# Node
+node_modules/
+.env
+package.json 
+
+# Prisma
+prisma/migrations/
+
+# Logs
+*.log
