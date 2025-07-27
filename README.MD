@@ -16,12 +16,12 @@ Faciliter la participation aux activités de l’association à travers une inte
 - **Technologies** : React Native (sans Expo), Tailwind CSS
 - **Mode hors-ligne** : Prévu pour permettre la consultation et la préparation d’inscriptions même sans connexion active
 
-## 🧰 Stack technique (prévisionnelle)
+## 🧰 Stack technique
 
 | Côté mobile         | Côté serveur               |
 |---------------------|----------------------------|
-| React Native (CLI)  | Node.js + Express.js       |
-| Tailwind CSS        | Prisma ORM + MySQL         |
+| React Native (CLI)  | Laravel (PHP)              |
+| Tailwind CSS        | MySQL (via XAMPP)          |
 | Context API / Redux | Authentification JWT       |
 | Axios               | Intégration Flutterwave, FedaPay, CinetPay |
 
@@ -36,7 +36,7 @@ Faciliter la participation aux activités de l’association à travers une inte
 - Splash screen, login, inscription
 - Accueil avec liste des activités
 - Formulaire d’inscription à une activité
-- Choix du mode de paiement
+- Choix du mode de paiement (Flutterwave, FedaPay, CinetPay)
 - Administration des activités
 - Liste centralisée des inscrits et paiements
 - Fermeture automatique des inscriptions à la date prévue
@@ -49,14 +49,20 @@ Faciliter la participation aux activités de l’association à travers une inte
 
 ## 🗓️ Statut
 
-- 📐 Cahier des charges rédigé
-- 🖌️ Maquettes en cours
-- ⚙️ Développement prévu en plusieurs phases
+- 📐 Cahier des charges : en cours de modification
+- 🖌️ Maquettes : en cours de modification
+- ⚙️ Développement : planifié
+- 🛠️ Branchement Git :
+  - `server` : pour le backend Laravel
+  - `mobile-app` : pour l’application mobile React Native
 
-## 👨‍💻 Développeur principal
+## 👨‍💻 Développeurs
 
-- Nom : SOGLOHOUN Samuel
-- Contact : soglohounsamuel2@gmail.com
+- **SOGLOHOUN Samuel**  
+  Contact : soglohounsamuel2@gmail.com
+
+- **FADONOUGBO Ornella Morelle Sessi**  
+  Contact : Ornella (à renseigner)
 
 ---
 
