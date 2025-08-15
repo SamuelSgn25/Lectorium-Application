@@ -1,68 +1,99 @@
-# Lectorium Rosicrucianum - Application Mobile
+# 📱 Lectorium Rosicrucianum — Application Mobile & Backend
 
-Lectorium Rosicrucianum est une application mobile développée pour digitaliser la gestion des inscriptions et des paiements liés aux conférences thématiques organisées dans plusieurs centres en Afrique francophone (Bénin, Côte d’Ivoire, RDC, Gabon).
+**Lectorium Rosicrucianum** est un projet visant à digitaliser la gestion des inscriptions et paiements liés aux conférences thématiques organisées dans plusieurs centres en Afrique francophone (Bénin, Côte d’Ivoire, RDC, Gabon).
 
-## 🎯 Objectif
+L’application permettra aux utilisateurs de s’inscrire facilement aux activités, de payer en ligne via les services de paiement mobile locaux et de suivre l’état de leurs inscriptions.  
+Les administrateurs auront accès à une interface de gestion complète des activités et des utilisateurs.
 
-Faciliter la participation aux activités de l’association à travers une interface mobile intuitive permettant :
-- La consultation du planning des activités
-- L’inscription aux conférences
-- Le paiement mobile via des services locaux (Flutterwave, FedaPay, CinetPay)
-- Le suivi administratif des inscriptions et paiements côté administrateur
+---
 
-## 📱 Plateforme ciblée
+## 🎯 Objectifs
 
-- **Version actuelle** : Mobile uniquement (Android)
-- **Technologies** : React Native (sans Expo), Tailwind CSS
-- **Mode hors-ligne** : Prévu pour permettre la consultation et la préparation d’inscriptions même sans connexion active
+- Offrir une **interface mobile cross-platform** (Android & iOS) fluide et intuitive
+- Digitaliser et automatiser les processus d’inscription et de paiement
+- Permettre une **gestion centralisée** des activités pour les administrateurs
+- Intégrer des **moyens de paiement mobile locaux** adaptés à l’Afrique de l’Ouest et Centrale
+- Garantir un mode **hors-ligne** partiel pour la consultation des activités
 
-## 🧰 Stack technique
+---
 
-| Côté mobile         | Côté serveur               |
-|---------------------|----------------------------|
-| React Native (CLI)  | Laravel (PHP)              |
-| Tailwind CSS        | MySQL (via XAMPP)          |
-| Context API / Redux | Authentification JWT       |
-| Axios               | Intégration Flutterwave, FedaPay, CinetPay |
+## 🖥️ Stack Technique
 
-## 🔒 Authentification & Rôles
+| Côté mobile                   | Côté serveur         |
+|--------------------------------|----------------------|
+| Flutter (Android & iOS)        | Laravel (PHP)        |
+| Tailwind CSS (via package)     | MySQL (XAMPP)        |
+| Riverpod / Provider            | Authentification JWT |
+| HTTP (Dio / http)              | API REST sécurisée   |
+|                                | Intégrations Flutterwave, FedaPay, CinetPay |
 
-- Compte utilisateur requis pour s’inscrire à une activité
-- Rôle administrateur pour la gestion des activités, des inscriptions, et des paiements
-- JWT utilisé pour sécuriser les sessions utilisateur
+---
 
-## 🔄 Fonctionnalités principales
+## 🔐 Authentification & Rôles
 
-- Splash screen, login, inscription
+- **Utilisateur** : inscription, consultation et participation aux activités
+- **Administrateur** : gestion complète des activités, création de nouveaux admins, clôture d’activités
+- Authentification sécurisée avec **JWT**
+
+---
+
+## 📋 Fonctionnalités principales
+
+- Splash screen
+- Connexion / Inscription utilisateur
 - Accueil avec liste des activités
 - Formulaire d’inscription à une activité
-- Choix du mode de paiement (Flutterwave, FedaPay, CinetPay)
-- Administration des activités
-- Liste centralisée des inscrits et paiements
-- Fermeture automatique des inscriptions à la date prévue
+- Paiement en ligne via services locaux
+- Gestion administrative (création/clôture activités, ajout admins)
+- Liste des activités inscrites et planifiées
+- Interface de planning
+- Fermeture automatique des inscriptions à date prévue
 
-## 📍 Spécificité régionale
+---
 
-- Application ciblée pour un **test au Bénin**
-- Intégration avec les API de paiement mobile courantes dans la région
-- Affichage des montants en Franc CFA (XOF)
+## 🌍 Spécificité régionale
 
-## 🗓️ Statut
+- Lancement **phase pilote au Bénin**
+- Montants affichés en **Franc CFA (XOF)**
+- Paiement via **Flutterwave, FedaPay, CinetPay**
 
-- 📐 Cahier des charges : en cours de modification
-- 🖌️ Maquettes : en cours de modification
-- ⚙️ Développement : planifié
-- 🛠️ Branchement Git :
-  - `server` : pour le backend Laravel
-  - `mobile-app` : pour l’application mobile React Native
+---
 
-## 👨‍💻 Développeurs
+## 🌐 Hébergement
 
-- **SOGLOHOUN Samuel**  
-  Contact : soglohounsamuel2@gmail.com
+- **Backend Laravel** : Hébergé sur serveur PHP + MySQL (Hostinger ou OVH)
+- **Application mobile** : Publication sur **Google Play Console** et **App Store Connect**
 
-- **FADONOUGBO Ornella Morelle Sessi**  
-  Contact : Ornella (à renseigner)
+---
+
+## 🛠️ Branchement Git
+
+- `server` : backend Laravel  
+- `mobile-app` : application mobile Flutter  
+
+---
+
+## 👨‍💻 Équipe de développement
+
+**SOGLOHOUN Samuel**  
+Email : soglohounsamuel2@gmail.com  
+Contact : +229 66015387  
+
+**FADONOUGBO Ornella Morelle Sessi**  
+Email : Ornella (à renseigner)  
+Contact : +229 50084300  
+
+**SEIDOU Haïdarath**  
+Email : soglohounsamuel2@gmail.com  
+Contact : +229 59617762  
+
+---
+
+## 📅 Gestion de projet
+
+- **Outil** : ClickUp
+- **Durée prévisionnelle** : 6 semaines de développement + 1 semaine de tests
+- **Méthodologie** : Agile / Scrum (revues hebdomadaires, sprints de 1 semaine)
 
 ---
 
