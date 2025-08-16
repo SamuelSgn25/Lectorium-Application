@@ -1,0 +1,45 @@
+lib/
+│
+├── main.dart                 # Point d’entrée de l’application
+├── app.dart                  # Configuration globale (routes, thème, providers)
+│
+├── core/                     # Cœur de l’application
+│   ├── config/               # Config globales et thèmes
+│   │   ├── app_colors.dart   # Palette de couleurs
+│   │   └── app_theme.dart    # Thème global (TextTheme, AppBarTheme, ButtonTheme)
+│   ├── utils/                # Fonctions utilitaires (validators, formatters, helpers)
+│   │   └── validators.dart
+│   └── widgets/              # Widgets réutilisables (boutons, cards, champs texte…)
+│       ├── custom_button.dart
+│       ├── custom_textfield.dart
+│       └── activity_card.dart
+│
+├── features/                 # Modules fonctionnels
+│   ├── auth/                 # Authentification
+│   │   ├── models/           # User, Token
+│   │   ├── views/            # LoginPage, RegisterPage, SplashScreen
+│   │   └── controllers/      # Provider/Riverpod pour auth
+│   │
+│   ├── home/                 # Dashboard principal
+│   │   ├── models/           # Activity, Event
+│   │   ├── views/            # HomePage, ActivityDetailPage
+│   │   └── controllers/      # Provider/Riverpod pour activities
+│   │
+│   ├── events/               # Gestion des activités / inscriptions
+│   │   ├── models/           # EventModel, Registration
+│   │   ├── views/            # EventListPage, EventDetailPage, RegistrationForm
+│   │   └── controllers/      # EventProvider
+│   │
+│   ├── payments/             # Gestion des paiements
+│   │   ├── models/           # PaymentInfo
+│   │   ├── views/            # PaymentPage, PaymentSuccessPage
+│   │   └── controllers/      # PaymentService
+│   │
+│   └── admin/                # Interface administrateur
+│       ├── views/            # AdminDashboard, ManageActivities
+│       └── controllers/      # AdminProvider
+│
+└── data/                     # Gestion des données
+    ├── local/                # Hive / SQLite / SharedPreferences
+    └── remote/               # API REST (Laravel)
+        └── api_service.dart
