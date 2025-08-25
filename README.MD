@@ -1,100 +1,100 @@
-# 📱 Lectorium Rosicrucianum — Application Mobile & Backend
+🌐 Lectorium Rosicrucianum — Application Web & Backend
 
-**Lectorium Rosicrucianum** est un projet visant à digitaliser la gestion des inscriptions et paiements liés aux conférences thématiques organisées dans plusieurs centres en Afrique francophone (Bénin, Côte d’Ivoire, RDC, Gabon).
+Lectorium Rosicrucianum est une plateforme web visant à digitaliser la communication publique (travaux, actualités, podcasts) et la gestion des activités de l’association, incluant inscriptions et paiements. Elle propose un espace sécurisé pour les membres et une interface complète pour les administrateurs.
 
-L’application permettra aux utilisateurs de s’inscrire facilement aux activités, de payer en ligne via les services de paiement mobile locaux et de suivre l’état de leurs inscriptions.  
-Les administrateurs auront accès à une interface de gestion complète des activités et des utilisateurs.
+🎯 Objectifs
 
----
+Offrir une interface web fluide et responsive pour le public et les membres
 
-## 🎯 Objectifs
+Digitaliser et automatiser les processus d’inscription et de paiement
 
-- Offrir une **interface mobile cross-platform** (Android & iOS) fluide et intuitive
-- Digitaliser et automatiser les processus d’inscription et de paiement
-- Permettre une **gestion centralisée** des activités pour les administrateurs
-- Intégrer des **moyens de paiement mobile locaux** adaptés à l’Afrique de l’Ouest et Centrale
-- Garantir un mode **hors-ligne** partiel pour la consultation des activités
+Permettre une gestion centralisée des activités pour les administrateurs
 
----
+Publier les actualités et podcasts pour le public
 
-## 🖥️ Stack Technique
+Fournir des listes exportables d’inscriptions avec statut de paiement
 
-| Côté mobile                   | Côté serveur         |
-|--------------------------------|----------------------|
-| Flutter (Android & iOS)        | Laravel (PHP)        |
-| Tailwind CSS (via package)     | MySQL (XAMPP)        |
-| Riverpod / Provider            | Authentification JWT |
-| HTTP (Dio / http)              | API REST sécurisée   |
-|                                | Intégrations Flutterwave, FedaPay, CinetPay |
+🖥️ Stack Technique
+Côté Frontend	Côté Backend
+React.js + Next.js (SSR/SSG)	Laravel (PHP)
+Tailwind CSS	MySQL (XAMPP)
+Déploiement : Vercel	Authentification JWT / Sanctum
+	API REST sécurisée
+	Intégration paiements : Flutterwave, FedaPay, CinetPay
+🔐 Authentification & Rôles
 
----
+Visiteurs : accès aux contenus publics (travaux, podcasts, actualités)
 
-## 🔐 Authentification & Rôles
+Membres : inscription, consultation et participation aux activités, paiement en ligne, suivi du statut
 
-- **Utilisateur** : inscription, consultation et participation aux activités
-- **Administrateur** : gestion complète des activités, création de nouveaux admins, clôture d’activités
-- Authentification sécurisée avec **JWT**
+Admins de centre : gestion des activités et inscriptions de leur centre (Cotonou, Porto-Novo, Natitingou, Lokossa)
 
----
+Admins suprêmes : Lectorium + développeurs (tous pouvoirs : création/suppression admins, gestion globale)
 
-## 📋 Fonctionnalités principales
+Direction nationale de la jeunesse : accès limité au reporting et validation selon règles internes
 
-- Splash screen
-- Connexion / Inscription utilisateur
-- Accueil avec liste des activités
-- Formulaire d’inscription à une activité
-- Paiement en ligne via services locaux
-- Gestion administrative (création/clôture activités, ajout admins)
-- Liste des activités inscrites et planifiées
-- Interface de planning
-- Fermeture automatique des inscriptions à date prévue
+Authentification sécurisée via email ou matricule + mot de passe
 
----
+📋 Fonctionnalités principales
 
-## 🌍 Spécificité régionale
+Accueil public : présentation des activités, travaux et podcasts
 
-- Lancement **phase pilote au Bénin**
-- Montants affichés en **Franc CFA (XOF)**
-- Paiement via **Flutterwave, FedaPay, CinetPay**
+Connexion / Inscription membres
 
----
+Tableau de bord membre : activités inscrites, statut de paiement
 
-## 🌐 Hébergement
+Formulaire d’inscription à une activité
 
-- **Backend Laravel** : Hébergé sur serveur PHP + MySQL (Hostinger ou OVH)
-- **Application mobile** : Publication sur **Google Play Console** et **App Store Connect**
+Paiement en ligne via services locaux (si activité payante)
 
----
+Gestion administrative : création/clôture activités, ajout admins, export listes d’inscriptions
 
-## 🛠️ Branchement Git
+Interface de planning et suivi des inscriptions
 
-- `server` : backend Laravel  
-- `mobile-app` : application mobile Flutter  
+Clôture automatique des inscriptions à la date prévue
 
----
+🌍 Spécificités régionales
 
-## 👨‍💻 Équipe de développement
+Phase pilote Bénin
 
-**SOGLOHOUN Samuel**  
-Email : soglohounsamuel2@gmail.com  
-Contact : +229 66015387  
+Montants affichés en Franc CFA (XOF)
 
-**FADONOUGBO Ornella Morelle Sessi**  
-Email : Ornella (à renseigner)  
-Contact : +229 50084300  
+Paiement via Flutterwave, FedaPay, CinetPay
 
-**SEIDOU Haïdarath**  
-Email : soglohounsamuel2@gmail.com  
-Contact : +229 59617762  
+🌐 Hébergement
 
----
+Frontend Next.js : déployé sur Vercel
 
-## 📅 Gestion de projet
+Backend Laravel : hébergé sur serveur PHP + MySQL (Hostinger ou OVH)
 
-- **Outil** : ClickUp
-- **Durée prévisionnelle** : 6 semaines de développement + 1 semaine de tests
-- **Méthodologie** : Agile / Scrum (revues hebdomadaires, sprints de 1 semaine)
+🛠️ Branchement Git
 
----
+server : backend Laravel
 
-> Ce projet est un outil interne pour l'association Lectorium Rosicrucianum et ne vise pas de diffusion publique à ce stade.
+web-app : frontend Next.js
+
+👨‍💻 Équipe de développement
+
+SOGLOHOUN Samuel
+Email : soglohounsamuel2@gmail.com
+
+Contact : +229 66015387
+
+FADONOUGBO Ornella Morelle Sessi
+Email : Ornella (à renseigner)
+Contact : +229 50084300
+
+SEIDOU Haïdarath
+Email : soglohounsamuel2@gmail.com
+
+Contact : +229 59617762
+
+📅 Gestion de projet
+
+Outil : ClickUp
+
+Durée prévisionnelle : 6 semaines de développement + 1 semaine de tests
+
+Méthodologie : Agile / Scrum (revues hebdomadaires, sprints de 1 semaine)
+
+Ce projet est destiné à un usage interne pour l'association Lectorium Rosicrucianum et n’est pas destiné à une diffusion publique pour l’instant.
