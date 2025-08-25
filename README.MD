@@ -80,4 +80,4 @@ Méthodologie : Agile / Scrum (revues hebdomadaires, sprints d’1 semaine)
 
 📝 Notes
 
-Ce projet est destiné à un usage interne pour l’association Lectorium Rosicrucianum et n’est pas encore destiné à une diffusion publique.
+> Ce projet est destiné à un usage interne pour l’association Lectorium Rosicrucianum et n’est pas encore destiné à une diffusion publique.
