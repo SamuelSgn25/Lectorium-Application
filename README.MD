@@ -53,10 +53,9 @@ Pour les administrateurs :
 - Gestion des rôles et permissions
 
 🌍 Spécificités régionales
-
-Lancement phase pilote au Bénin
-Montants affichés en Franc CFA (XOF)
-Paiement via Flutterwave, FedaPay et CinetPay
+- Lancement phase pilote au Bénin
+- Montants affichés en Franc CFA (XOF)
+- Paiement via Flutterwave, FedaPay et CinetPay
 
 🌐 Déploiement
 - Frontend : Vercel (préprod & prod)
@@ -64,9 +63,8 @@ Paiement via Flutterwave, FedaPay et CinetPay
 - Base de données MySQL managée
 
 🛠️ Branchement Git
-
-web-app : frontend Next.js
-server : backend Laravel
+- frontend : React Next.js & TailwindCSS
+- server : backend Laravel
 
 👨‍💻 Équipe de développement
 | Nom                              | Rôle     | Email                                                           | Contact       |
