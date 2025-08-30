@@ -77,6 +77,7 @@ server : backend Laravel
 
 
 📅 Gestion de projet
+
 Outil : ClickUp
 Durée : 6 semaines de développement + 1 semaine de tests
 Méthodologie : Agile / Scrum (revues hebdomadaires, sprints d’1 semaine)
