@@ -4,6 +4,7 @@ Lectorium Rosicrucianum est une plateforme web destinée à digitaliser la gesti
 
 
 🎯 Objectifs
+
 Offrir une interface web responsive et intuitive pour le public, les membres et les admins.
 Digitaliser et automatiser les inscriptions et paiements.
 Fournir aux administrateurs un tableau de bord centralisé.
@@ -32,10 +33,10 @@ Assurer sécurité et conformité RGPD.
 
 
 🔐 Authentification
-Membres : inscription via email, mot de passe, matricule, niveau/grade, identité complète.
-Connexion : email ou matricule + mot de passe.
-Admins : accès complet selon rôle, avec gestion sécurisée des permissions.
-Export des listes d’inscriptions (CSV/Excel) avec informations : matricule, nom, prénom, niveau/grade, statut paiement.
+- Membres : inscription via email, mot de passe, matricule, niveau/grade, identité complète.
+- Connexion : email ou matricule + mot de passe.
+- Admins : accès complet selon rôle, avec gestion sécurisée des permissions.
+- Export des listes d’inscriptions (CSV/Excel) avec informations : matricule, nom, prénom, niveau/grade, statut paiement.
 
 📋 Fonctionnalités principales
 Pour le public :
@@ -52,6 +53,7 @@ Pour les administrateurs :
 - Gestion des rôles et permissions
 
 🌍 Spécificités régionales
+
 Lancement phase pilote au Bénin
 Montants affichés en Franc CFA (XOF)
 Paiement via Flutterwave, FedaPay et CinetPay
@@ -62,15 +64,16 @@ Paiement via Flutterwave, FedaPay et CinetPay
 - Base de données MySQL managée
 
 🛠️ Branchement Git
+
 web-app : frontend Next.js
 server : backend Laravel
 
 👨‍💻 Équipe de développement
 | Nom                              | Rôle     | Email                                                           | Contact       |
 | -------------------------------- | -------- | --------------------------------------------------------------- | ------------- |
-| SOGLOHOUN Samuel                 | Frontend | [soglohounsamuel2@gmail.com](mailto:soglohounsamuel2@gmail.com) | +229 66015387 |
-| FADONOUGBO Ornella Morelle Sessi | Backend  | à renseigner                                                    | +229 50084300 |
-| SEIDOU Haïdarath                 | Backend  | [soglohounsamuel2@gmail.com](mailto:soglohounsamuel2@gmail.com) | +229 59617762 |
+| SOGLOHOUN Samuel                 | Frontend & Project Manager | [soglohounsamuel2@gmail.com](mailto:soglohounsamuel2@gmail.com) | +229 66015387 |
+| FADONOUGBO Ornella Morelle Sessi | Lead Backend  | à renseigner                                                    | +229 50084300 |
+| SEIDOU Haïdarath                 | Backend  | [haidarath.seidou@epitech.eu](mailto:haidarath.seidou@epitech.eu) | +229 59617762 |
 
 
 📅 Gestion de projet
