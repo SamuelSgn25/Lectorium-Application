@@ -1,4 +1,4 @@
-📌 Lectorium Rosicrucianum — Plateforme Web
+📌 Lectorium Rosicrucianum — Application Web
 
 Lectorium Rosicrucianum est une plateforme web destinée à digitaliser la gestion des activités et la communication publique de l’association Lectorium Rosicrucianum. Elle permet aux membres de s’inscrire aux activités, de payer en ligne et de suivre leurs inscriptions, tandis que les administrateurs disposent d’un tableau de bord complet pour gérer les activités, les inscriptions et les paiements.
 
