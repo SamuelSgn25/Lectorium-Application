@@ -70,7 +70,7 @@ Pour les administrateurs :
 | Nom                              | Rôle     | Email                                                           | Contact       |
 | -------------------------------- | -------- | --------------------------------------------------------------- | ------------- |
 | SOGLOHOUN Samuel                 | Frontend & Project Manager | [soglohounsamuel2@gmail.com](mailto:soglohounsamuel2@gmail.com) | +229 66015387 |
-| FADONOUGBO Ornella Morelle Sessi | Lead Backend  | à renseigner                                                    | +229 50084300 |
+| FADONOUGBO Ornella Morelle Sessi | Lead Backend  | fadonougboornella@gmail.com                                                    | +229 54244484 |
 | SEIDOU Haïdarath                 | Backend  | [haidarath.seidou@epitech.eu](mailto:haidarath.seidou@epitech.eu) | +229 59617762 |
 
 
