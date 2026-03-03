@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #b89047;
+  /* Muted Gold / Rose Croix */
+  --color-primary-light: #d4b572;
+  --color-secondary: #4a5568;
+  --color-surface: #ffffff;
+  --color-background: #fdfbf7;
+  /* Very soft warm off-white */
+  --color-text: #2d3748;
+  --color-text-muted: #718096;
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Georgia', serif;
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/70 backdrop-blur-md border border-stone-200/50 shadow-sm;
+  }
+}
+
+body {
+  @apply bg-[#fdfbf7] text-[#2d3748] font-sans antialiased selection:bg-[#b89047]/20 selection:text-[#b89047];
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  @apply font-serif font-light text-[#2d3748];
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-[#fdfbf7];
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-stone-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-[#b89047]/70;
+}
