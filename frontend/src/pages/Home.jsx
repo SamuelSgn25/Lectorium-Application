@@ -8,7 +8,7 @@ const Home = () => {
     const [activities, setActivities] = useState([]);
 
     useEffect(() => {
-        axios.get('http://localhost:5000/api/activities')
+        axios.get('/api/activities')
             .then(res => setActivities(res.data.filter(a => a.is_public && a.status === 'upcoming').slice(0, 3)))
             .catch(console.error);
     }, []);
