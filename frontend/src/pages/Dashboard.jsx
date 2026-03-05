@@ -37,11 +37,11 @@ const Dashboard = () => {
         try {
             if (user?.role === 'Admin') {
                 const [regAll, act, usr, regSelf, me] = await Promise.all([
-                    axios.get('http://localhost:5000/api/registrations?mode=all', { headers }),
-                    axios.get('http://localhost:5000/api/activities'),
-                    axios.get('http://localhost:5000/api/users', { headers }),
-                    axios.get('http://localhost:5000/api/registrations', { headers }),
-                    axios.get('http://localhost:5000/api/users/me', { headers })
+                    axios.get('/api/registrations?mode=all', { headers }),
+                    axios.get('/api/activities'),
+                    axios.get('/api/users', { headers }),
+                    axios.get('/api/registrations', { headers }),
+                    axios.get('/api/users/me', { headers })
                 ]);
                 setData({ registrations: regAll.data, myRegistrations: regSelf.data, activities: act.data, users: usr.data });
                 setProfileForm({
@@ -54,9 +54,9 @@ const Dashboard = () => {
                 });
             } else {
                 const [regSelf, act, me] = await Promise.all([
-                    axios.get('http://localhost:5000/api/registrations', { headers }),
-                    axios.get('http://localhost:5000/api/activities'),
-                    axios.get('http://localhost:5000/api/users/me', { headers })
+                    axios.get('/api/registrations', { headers }),
+                    axios.get('/api/activities'),
+                    axios.get('/api/users/me', { headers })
                 ]);
                 setData({ registrations: [], myRegistrations: regSelf.data, activities: act.data, users: [] });
                 setProfileForm({
@@ -84,7 +84,7 @@ const Dashboard = () => {
     const updateRegistrationStatus = async (id, status, pstatus) => {
         try {
             if (!window.confirm("Êtes-vous sûr de mettre à jour cette candidature ?")) return;
-            await axios.put(`http://localhost:5000/api/registrations/${id}/status`, { status, payment_status: pstatus }, { headers });
+            await axios.put(`/api/registrations/${id}/status`, { status, payment_status: pstatus }, { headers });
             fetchData();
         } catch (err) { console.error(err); }
     };
@@ -92,14 +92,14 @@ const Dashboard = () => {
     const updateUserStatus = async (id, status) => {
         try {
             if (!window.confirm(`Confirmer l'opération (${status}) pour ce membre ?`)) return;
-            await axios.put(`http://localhost:5000/api/users/${id}/status`, { status }, { headers });
+            await axios.put(`/api/users/${id}/status`, { status }, { headers });
             fetchData();
         } catch (err) { console.error(err); }
     };
 
     const updateUserRoleGrade = async (id, role, grade) => {
         try {
-            await axios.put(`http://localhost:5000/api/users/${id}/role`, { role, grade }, { headers });
+            await axios.put(`/api/users/${id}/role`, { role, grade }, { headers });
             fetchData();
             alert("Profil du membre mis à jour.");
         } catch (err) { console.error(err); }
@@ -110,7 +110,7 @@ const Dashboard = () => {
         try {
             // validate site at least ONE
             if (activityForm.sites.length === 0) { alert("Veuillez sélectionner au moins un site"); return; }
-            await axios.post(`http://localhost:5000/api/activities`, activityForm, { headers });
+            await axios.post(`/api/activities`, activityForm, { headers });
             alert("Activité créée");
             setActivityForm({ title: '', description: '', type: 'Conférence de Renouvellement', date_start: '', date_end: '', inscription_start: '', inscription_end: '', price_fcfa: 0, max_participants: '', is_public: true, sites: [] });
             fetchData();
@@ -120,7 +120,7 @@ const Dashboard = () => {
     const deleteActivity = async (id) => {
         if (!window.confirm("Supprimer cette activité et toutes ses inscriptions ?")) return;
         try {
-            await axios.delete(`http://localhost:5000/api/activities/${id}`, { headers });
+            await axios.delete(`/api/activities/${id}`, { headers });
             fetchData();
         } catch (err) { alert("Erreur serveur lors de la suppression."); }
     };
@@ -128,7 +128,7 @@ const Dashboard = () => {
     const createUser = async (e) => {
         e.preventDefault();
         try {
-            await axios.post('http://localhost:5000/api/users', userForm, { headers });
+            await axios.post('/api/users', userForm, { headers });
             alert("Compte créé avec succès !");
             setUserForm({ nom: '', prenom: '', email: '', role: 'Membre', password: '' });
             fetchData();
@@ -138,7 +138,7 @@ const Dashboard = () => {
     const deleteUser = async (id) => {
         if (!window.confirm("Supprimer DÉFINITIVEMENT ce membre et son adhésion ?")) return;
         try {
-            await axios.delete(`http://localhost:5000/api/users/${id}`, { headers });
+            await axios.delete(`/api/users/${id}`, { headers });
             fetchData();
         } catch (err) { alert("Erreur serveur."); }
     };
@@ -165,7 +165,7 @@ const Dashboard = () => {
     const updateProfile = async (e) => {
         e.preventDefault();
         try {
-            await axios.put(`http://localhost:5000/api/users/me`, profileForm, { headers });
+            await axios.put(`/api/users/me`, profileForm, { headers });
             alert("Paramètres mis à jour");
         } catch (err) { alert("Erreur"); }
     };
@@ -173,7 +173,7 @@ const Dashboard = () => {
     const applyForEvent = async (activity_id) => {
         if (!window.confirm("Appliquer à cet événement ?")) return;
         try {
-            await axios.post('http://localhost:5000/api/register-activity', {
+            await axios.post('/api/register-activity', {
                 activity_id, motivation: 'Inscription Rapide depuis le planning.', experience: '', attentes: '', payment_method: 'physical'
             }, { headers });
             alert("Candidature envoyée !");
