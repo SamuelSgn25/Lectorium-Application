@@ -8,7 +8,7 @@ const Podcasts = () => {
     const [filter, setFilter] = useState('Toutes');
 
     useEffect(() => {
-        axios.get('http://localhost:5000/api/podcasts')
+        axios.get('/api/podcasts')
             .then(res => setPodcasts(res.data))
             .catch(console.error);
     }, []);
