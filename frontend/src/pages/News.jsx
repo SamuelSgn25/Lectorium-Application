@@ -8,7 +8,7 @@ const News = () => {
     const [filter, setFilter] = useState('Toutes');
 
     useEffect(() => {
-        axios.get('http://localhost:5000/api/news')
+        axios.get('/api/news')
             .then(res => setNews(res.data))
             .catch(console.error);
     }, []);
