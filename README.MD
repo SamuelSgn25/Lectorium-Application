@@ -25,8 +25,8 @@ Assurer sécurité et conformité RGPD.
 🖥️ Stack Technique
 | Côté Frontend                         | Côté Backend                                           |
 | ------------------------------------- | ------------------------------------------------------ |
-| React.js + Next.js (SSR/SSG pour SEO) | Laravel (PHP)                                          |
-| Tailwind CSS                          | MySQL                                                  |
+| React.js                              | Node Js(Express)                                       |
+| Tailwind CSS                          | PostgreSQL                                             |
 | Déploiement : Vercel                  | API REST sécurisée                                     |
 | Responsive Desktop & Tablette         | Auth JWT / Sanctum                                     |
 | SEO optimisé                          | Intégration paiements : Flutterwave, FedaPay, CinetPay |
@@ -59,12 +59,12 @@ Pour les administrateurs :
 
 🌐 Déploiement
 - Frontend : Vercel (préprod & prod)
-- Backend : Serveur PHP/MySQL (Hostinger ou OVH)
-- Base de données MySQL managée
+- Backend : Serveur Node Js(Express) & PostgreSQL
+- Base de données PostgreSQL managée
 
 🛠️ Branchement Git
-- frontend : React Next.js & TailwindCSS
-- server : backend Laravel
+- frontend : React js & TailwindCSS
+- server : backend Node Js(Express) & PostgreSQL
 
 👨‍💻 Équipe de développement
 | Nom                              | Rôle     | Email                                                           | Contact       |
