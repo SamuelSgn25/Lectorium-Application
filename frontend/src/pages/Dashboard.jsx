@@ -13,7 +13,8 @@ const locales = { 'fr': fr };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
 
 const Dashboard = () => {
-    const { user, login } = useContext(AuthContext); // Can refresh user internally if needed
+    const { user, setUser } = useContext(AuthContext); // Can refresh user internally if needed
+
     const [data, setData] = useState({ activities: [], registrations: [], myRegistrations: [], users: [] });
     const [tab, setTab] = useState('overview');
     const [planningView, setPlanningView] = useState('list');
@@ -45,6 +46,10 @@ const Dashboard = () => {
                 ]);
                 setData({ registrations: regAll.data, myRegistrations: regSelf.data, activities: act.data, users: usr.data });
                 setProfileForm({
+                    nom: me.data.nom || '',
+                    prenom: me.data.prenom || '',
+                    email: me.data.email || '',
+                    password: '',
                     email_notifications: me.data.email_notifications,
                     sms_notifications: me.data.sms_notifications,
                     adresse: me.data.adresse || '',
@@ -52,6 +57,7 @@ const Dashboard = () => {
                     telephone_autre: me.data.telephone_autre || '',
                     profession: me.data.profession || ''
                 });
+
             } else {
                 const [regSelf, act, me] = await Promise.all([
                     axios.get('/api/registrations', { headers }),
@@ -60,6 +66,10 @@ const Dashboard = () => {
                 ]);
                 setData({ registrations: [], myRegistrations: regSelf.data, activities: act.data, users: [] });
                 setProfileForm({
+                    nom: me.data.nom || '',
+                    prenom: me.data.prenom || '',
+                    email: me.data.email || '',
+                    password: '',
                     email_notifications: me.data.email_notifications,
                     sms_notifications: me.data.sms_notifications,
                     adresse: me.data.adresse || '',
@@ -67,6 +77,7 @@ const Dashboard = () => {
                     telephone_autre: me.data.telephone_autre || '',
                     profession: me.data.profession || ''
                 });
+
             }
         } catch (err) {
             console.error(err);
@@ -167,8 +178,14 @@ const Dashboard = () => {
         try {
             await axios.put(`/api/users/me`, profileForm, { headers });
             alert("Paramètres mis à jour");
-        } catch (err) { alert("Erreur"); }
+            // Rafraîchir les données locales de l'utilisateur
+            const me = await axios.get('/api/users/me', { headers });
+            localStorage.setItem('user', JSON.stringify(me.data));
+            setUser(me.data);
+            setProfileForm(prev => ({ ...prev, password: '' }));
+        } catch (err) { alert(err.response?.data?.message || "Erreur lors de la mise à jour"); }
     };
+
 
     const applyForEvent = async (activity_id) => {
         if (!window.confirm("Appliquer à cet événement ?")) return;
@@ -567,7 +584,29 @@ const Dashboard = () => {
                             </div>
 
                             <div>
-                                <h3 className="text-lg font-serif text-[#b89047] mb-3">Mise à jour des coordonnées</h3>
+                                <h3 className="text-lg font-serif text-[#b89047] mb-3">Informations personnelles</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">Nom</label>
+                                        <input type="text" value={profileForm.nom} onChange={e => setProfileForm({ ...profileForm, nom: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] bg-stone-50" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">Prénom</label>
+                                        <input type="text" value={profileForm.prenom} onChange={e => setProfileForm({ ...profileForm, prenom: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] bg-stone-50" />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">Adresse Email</label>
+                                        <input type="email" value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] bg-stone-50" />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">Nouveau mot de passe (laisser vide pour ne pas changer)</label>
+                                        <input type="password" value={profileForm.password} onChange={e => setProfileForm({ ...profileForm, password: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] bg-stone-50" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-serif text-[#b89047] mb-3 mt-6">Mise à jour des coordonnées</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="md:col-span-2">
                                         <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">Adresse</label>
@@ -587,6 +626,7 @@ const Dashboard = () => {
                                     </div>
                                 </div>
                             </div>
+
 
                             <button type="submit" className="bg-[#b89047] text-white px-6 py-2 uppercase text-sm font-bold tracking-widest hover:bg-[#a37b3b]">Enregistrer les modifications</button>
                         </form>
