@@ -7,13 +7,16 @@ const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT,
-    secure: process.env.SMTP_SECURE !== 'false',
+    port: parseInt(process.env.SMTP_PORT),
+    secure: process.env.SMTP_SECURE, // true pour le port 465, false pour 587
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
     },
 });
+
+const fromEmail = `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER}>`;
+
 
 const db = require('./db');
 const app = express();
@@ -76,8 +79,9 @@ app.post('/api/register', async (req, res) => {
         if (process.env.SMTP_USER) {
             try {
                 await transporter.sendMail({
-                    from: `"Lectorium Rosicrucianum" <${process.env.SMTP_USER}>`,
+                    from: fromEmail,
                     to: email,
+
                     subject: "Confirmation de votre demande d'adhésion",
                     html: `
                         <h2 style="color: #b89047;">Demande d'adhésion reçue</h2>
@@ -150,8 +154,9 @@ app.post('/api/forgot-password', async (req, res) => {
 
         if (process.env.SMTP_USER) {
             await transporter.sendMail({
-                from: `"Lectorium Rosicrucianum" <${process.env.SMTP_USER}>`,
+                from: fromEmail,
                 to: email,
+
                 subject: "Réinitialisation de votre mot de passe",
                 html: `
                     <h2 style="color: #b89047;">Mot de passe oublié</h2>
@@ -184,16 +189,56 @@ app.get('/api/users/me', auth(), async (req, res) => {
 // Update Profile
 app.put('/api/users/me', auth(), async (req, res) => {
     try {
-        const { email_notifications, sms_notifications, adresse, telephone_whatsapp, telephone_autre, profession } = req.body;
-        await db.query(`UPDATE users SET 
-      email_notifications = $1, sms_notifications = $2, adresse = $3, 
-      telephone_whatsapp = $4, telephone_autre = $5, profession = $6 
-      WHERE id = $7`,
-            [email_notifications, sms_notifications, adresse, telephone_whatsapp, telephone_autre, profession, req.user.id]
-        );
+        const {
+            nom, prenom, email, password,
+            email_notifications, sms_notifications, adresse,
+            telephone_whatsapp, telephone_autre, profession
+        } = req.body;
+
+        // Si l'email est modifié, vérifier son unicité
+        if (email) {
+            const emailCheck = await db.query('SELECT id FROM users WHERE email = $1 AND id != $2', [email, req.user.id]);
+            if (emailCheck.rows.length > 0) {
+                return res.status(400).json({ message: "Cette adresse email est déjà utilisée." });
+            }
+        }
+
+        let query = `UPDATE users SET 
+            nom = COALESCE($1, nom), 
+            prenom = COALESCE($2, prenom), 
+            email = COALESCE($3, email), 
+            email_notifications = $4, 
+            sms_notifications = $5, 
+            adresse = $6, 
+            telephone_whatsapp = $7, 
+            telephone_autre = $8, 
+            profession = $9`;
+
+        let params = [
+            nom, prenom, email,
+            email_notifications, sms_notifications, adresse,
+            telephone_whatsapp, telephone_autre, profession
+        ];
+
+        // Gérer le mot de passe s'il est fourni
+        if (password && password.trim() !== "") {
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(password, salt);
+            query += `, password = $${params.length + 1}`;
+            params.push(hashedPassword);
+        }
+
+        query += ` WHERE id = $${params.length + 1}`;
+        params.push(req.user.id);
+
+        await db.query(query, params);
         res.json({ message: "Profil mis à jour" });
-    } catch (err) { res.status(500).json({ message: "Erreur" }); }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Erreur lors de la mise à jour du profil" });
+    }
 });
+
 
 // ----------------- USERS ADMIN -----------------
 app.post('/api/users', auth(['Admin']), async (req, res) => {
@@ -211,19 +256,24 @@ app.post('/api/users', auth(['Admin']), async (req, res) => {
         if (process.env.SMTP_USER) {
             try {
                 await transporter.sendMail({
-                    from: `"Lectorium Rosicrucianum" <${process.env.SMTP_USER}>`,
+                    from: fromEmail,
                     to: email,
-                    subject: "Votre accès au Lectorium Rosicrucianum",
+                    subject: "Vos identifiants d'accès - Lectorium Rosicrucianum",
                     html: `
-                        <h2 style="color: #b89047;">Bienvenue !</h2>
-                        <p>Bonjour ${prenom} ${nom},</p>
-                        <p>Un profil vient d'être généré pour vous sur la plateforme du Lectorium Rosicrucianum.</p>
-                        <ul>
-                            <li><strong>Rôle :</strong> ${role}</li>
-                            <li><strong>Adresse Email :</strong> ${email}</li>
-                            <li><strong>Mot de passe :</strong> ${password}</li>
-                        </ul>
-                        <p>Vous pouvez dès à présent vous connecter via la page d'accueil de la plateforme.</p>
+                        <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e1dcc5; padding: 20px;">
+                            <h2 style="color: #b89047; border-bottom: 2px solid #b89047; padding-bottom: 10px;">Bienvenue sur la plateforme !</h2>
+                            <p>Bonjour ${prenom} ${nom},</p>
+                            <p>Un profil vient d'être généré pour vous par l'administration du Lectorium Rosicrucianum.</p>
+                            <p>Vous pouvez désormais vous connecter à votre espace personnel avec les identifiants suivants :</p>
+                            <div style="background-color: #fdfbf7; border: 1px solid #b89047; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                                <p style="margin: 5px 0;"><strong>Adresse Email :</strong> ${email}</p>
+                                <p style="margin: 5px 0;"><strong>Mot de passe :</strong> ${password}</p>
+                            </div>
+                            <p><strong>Rôle :</strong> ${role}</p>
+                            <p style="margin-top: 20px;">Nous vous recommandons de changer votre mot de passe après votre première connexion dans les paramètres de votre profil.</p>
+                            <p>À très bientôt,</p>
+                            <p><em>L'administration du Lectorium Rosicrucianum</em></p>
+                        </div>
                     `
                 });
             } catch (mailErr) {
@@ -256,8 +306,9 @@ app.put('/api/users/:id/status', auth(['Admin']), async (req, res) => {
                 const u = uQuery.rows[0];
                 try {
                     await transporter.sendMail({
-                        from: `"Lectorium Rosicrucianum" <${process.env.SMTP_USER}>`,
+                        from: fromEmail,
                         to: u.email,
+
                         subject: "Votre adhésion est confirmée",
                         html: `
                             <h2 style="color: #b89047;">Adhésion Validée !</h2>
