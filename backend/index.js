@@ -165,7 +165,9 @@ app.post('/api/forgot-password', async (req, res) => {
                     <div style="font-size: 20px; font-weight: bold; background: #fdfbf7; padding: 15px; border: 1px solid #b89047; display: inline-block; margin: 10px 0;">
                         ${tempPassword}
                     </div>
-                    <p>Connectez-vous dès à présent avec ce nouveau mot de passe sur la plateforme.</p>
+                    <p>Connectez-vous dès à présent avec ce nouveau mot de passe sur la plateforme :</p>
+                    <p><a href="https://lectorium-application.vercel.app/login" style="color: #b89047; font-weight: bold;">Accéder à la page de connexion</a></p>
+
                 `
             });
             res.json({ message: "Un nouveau mot de passe a été envoyé à votre adresse email." });
@@ -271,8 +273,12 @@ app.post('/api/users', auth(['Admin']), async (req, res) => {
                             </div>
                             <p><strong>Rôle :</strong> ${role}</p>
                             <p style="margin-top: 20px;">Nous vous recommandons de changer votre mot de passe après votre première connexion dans les paramètres de votre profil.</p>
-                            <p>À très bientôt,</p>
+                            <div style="text-align: center; margin-top: 30px;">
+                                <a href="https://lectorium-application.vercel.app/login" style="background-color: #b89047; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Se connecter à mon espace</a>
+                            </div>
+                            <p style="margin-top: 30px;">À très bientôt,</p>
                             <p><em>L'administration du Lectorium Rosicrucianum</em></p>
+
                         </div>
                     `
                 });
@@ -319,6 +325,10 @@ app.put('/api/users/:id/status', auth(['Admin']), async (req, res) => {
                                 <li><strong>Adresse Email :</strong> ${u.email}</li>
                                 <li><strong>Mot de passe :</strong> <i>(Le mot de passe confidentiel que vous avez soumis dans le formulaire d'adhésion)</i></li>
                             </ul>
+                            <p style="margin-top: 20px;">
+                                <a href="https://lectorium-application.vercel.app/login" style="color: #b89047; font-weight: bold;">Cliquez ici pour vous connecter</a>
+                            </p>
+
                         `
                     });
                 } catch (mailErr) { console.error("Erreur email d'approbation", mailErr); }
