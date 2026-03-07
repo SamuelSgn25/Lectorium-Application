@@ -374,18 +374,12 @@ app.get('/api/activities', async (req, res) => {
 
 app.post('/api/activities', auth(['Admin']), async (req, res) => {
     try {
-        let { title, description, type, date_start, date_end, inscription_start, inscription_end, sites, price_fcfa, max_participants, is_public } = req.body;
-
-        // Fix empty fields from frontend
-        inscription_start = inscription_start || null;
-        inscription_end = inscription_end || null;
-        price_fcfa = price_fcfa || 0;
-        max_participants = max_participants || null;
+        let { title, description, type, date_start, date_end, inscription_start, inscription_end, sites, price_fcfa, max_participants, is_public, program } = req.body;
 
         const newActivity = await db.query(
-            `INSERT INTO activities (title, description, type, date_start, date_end, inscription_start, inscription_end, sites, price_fcfa, max_participants, is_public) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-            [title, description, type, date_start, date_end, inscription_start, inscription_end, JSON.stringify(sites), price_fcfa, max_participants, is_public]
+            `INSERT INTO activities (title, description, type, date_start, date_end, inscription_start, inscription_end, sites, price_fcfa, max_participants, is_public, program) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+            [title, description, type, date_start, date_end, inscription_start || null, inscription_end || null, JSON.stringify(sites), price_fcfa || 0, max_participants || null, is_public, JSON.stringify(program || [])]
         );
         res.status(201).json(newActivity.rows[0]);
     } catch (err) {
@@ -393,6 +387,23 @@ app.post('/api/activities', auth(['Admin']), async (req, res) => {
         res.status(500).json({ message: "Erreur serveur" });
     }
 });
+
+app.put('/api/activities/:id', auth(['Admin']), async (req, res) => {
+    try {
+        let { title, description, type, date_start, date_end, inscription_start, inscription_end, sites, price_fcfa, max_participants, is_public, program } = req.body;
+
+        const updatedActivity = await db.query(
+            `UPDATE activities SET title = $1, description = $2, type = $3, date_start = $4, date_end = $5, inscription_start = $6, inscription_end = $7, sites = $8, price_fcfa = $9, max_participants = $10, is_public = $11, program = $12 
+             WHERE id = $13 RETURNING *`,
+            [title, description, type, date_start, date_end, inscription_start || null, inscription_end || null, JSON.stringify(sites), price_fcfa || 0, max_participants || null, is_public, JSON.stringify(program || []), req.params.id]
+        );
+        res.json(updatedActivity.rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Erreur serveur" });
+    }
+});
+
 
 app.delete('/api/activities/:id', auth(['Admin']), async (req, res) => {
     try {
@@ -420,20 +431,37 @@ app.get('/api/registrations', auth(['Admin', 'Membre']), async (req, res) => {
     }
 });
 
-app.post('/api/register-activity', auth(['Membre', 'Admin']), async (req, res) => {
+app.post('/api/register-activity', async (req, res) => {
     try {
-        const { activity_id, motivation, experience, attentes, payment_method } = req.body;
+        const { activity_id, motivation, experience, attentes, payment_method, guest_info, child_info } = req.body;
 
-        const regCheck = await db.query('SELECT * FROM registrations WHERE user_id = $1 AND activity_id = $2', [req.user.id, activity_id]);
-        if (regCheck.rows.length > 0) return res.status(400).json({ message: "Candidature déjà envoyée pour cet événement" });
+        // Vérifier si l'activité existe et son prix
+        const activityQuery = await db.query('SELECT * FROM activities WHERE id = $1', [activity_id]);
+        if (activityQuery.rows.length === 0) return res.status(404).json({ message: "Activité non trouvée" });
+        const activity = activityQuery.rows[0];
+
+        let userId = null;
+        let authHeader = req.headers.authorization;
+        if (authHeader) {
+            try {
+                const token = authHeader.split(" ")[1];
+                const decoded = jwt.verify(token, JWT_SECRET);
+                userId = decoded.id;
+            } catch (e) { }
+        }
+
+        if (userId && !guest_info && !child_info) {
+            const regCheck = await db.query('SELECT * FROM registrations WHERE user_id = $1 AND activity_id = $2', [userId, activity_id]);
+            if (regCheck.rows.length > 0) return res.status(400).json({ message: "Candidature déjà envoyée pour cet événement" });
+        }
 
         let baseStatus = 'approved';
-        let pmtStatus = payment_method === 'physical' ? 'physical' : 'pending';
+        let pmtStatus = (activity.price_fcfa === 0 || activity.price_fcfa === null) ? 'paid' : (payment_method === 'physical' ? 'physical' : 'pending');
 
         const dbRes = await db.query(
-            `INSERT INTO registrations (user_id, activity_id, status, payment_status, payment_method) 
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-            [req.user.id, activity_id, baseStatus, pmtStatus, payment_method]
+            `INSERT INTO registrations (user_id, activity_id, status, payment_status, payment_method, guest_info, child_info) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+            [userId, activity_id, baseStatus, pmtStatus, payment_method, JSON.stringify(guest_info || null), JSON.stringify(child_info || null)]
         );
         res.status(201).json(dbRes.rows[0]);
     } catch (err) {
@@ -441,6 +469,7 @@ app.post('/api/register-activity', auth(['Membre', 'Admin']), async (req, res) =
         res.status(500).json({ message: "Erreur serveur" });
     }
 });
+
 
 app.put('/api/registrations/:id/status', auth(['Admin']), async (req, res) => {
     try {
