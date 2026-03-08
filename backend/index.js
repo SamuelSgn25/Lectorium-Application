@@ -243,7 +243,7 @@ app.put('/api/users/me', auth(), async (req, res) => {
 
 
 // ----------------- USERS ADMIN -----------------
-app.post('/api/users', auth(['Admin']), async (req, res) => {
+app.post('/api/users', auth(['Admin', 'SuperAdmin']), async (req, res) => {
     try {
         const { nom, prenom, email, role, password } = req.body;
         const userExists = await db.query('SELECT * FROM users WHERE email = $1', [email]);
@@ -291,19 +291,21 @@ app.post('/api/users', auth(['Admin']), async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Erreur serveur" }); }
 });
 
-app.get('/api/admin/users', auth(['Admin']), async (req, res) => {
-    try {
-        const u = await db.query('SELECT * FROM users ORDER BY created_at DESC');
-        res.json(u.rows);
-    } catch (err) {
-        res.status(500).json({ message: "Erreur" });
-    }
-});
 
 // Validation Adhesion
-app.put('/api/admin/users/:id/status', auth(['Admin']), async (req, res) => {
+app.put('/api/admin/users/:id/status', auth(['Admin', 'SuperAdmin']), async (req, res) => {
     try {
         const { status } = req.body;
+
+        // Vérifier la hiérarchie pour la validation
+        const targetUserQuery = await db.query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+        if (targetUserQuery.rows.length === 0) return res.status(404).json({ message: "Utilisateur non trouvé" });
+        const targetUser = targetUserQuery.rows[0];
+
+        if (req.user.role === 'Admin' && targetUser.role === 'SuperAdmin') {
+            return res.status(403).json({ message: "Vous ne pouvez pas modifier le statut de l'Admin Suprême" });
+        }
+
         await db.query('UPDATE users SET status = $1 WHERE id = $2', [status, req.params.id]);
 
         if (status === 'approved' && process.env.SMTP_USER) {
@@ -340,9 +342,20 @@ app.put('/api/admin/users/:id/status', auth(['Admin']), async (req, res) => {
 });
 
 
-app.get('/api/admin/users', auth(['Admin']), async (req, res) => {
+
+app.get('/api/admin/users', auth(['Admin', 'SuperAdmin']), async (req, res) => {
     try {
-        const u = await db.query('SELECT * FROM users ORDER BY created_at DESC');
+        let query = 'SELECT * FROM users';
+        let params = [];
+
+        // Un Admin (non Super) ne peut pas voir le SuperAdmin
+        if (req.user.role === 'Admin') {
+            query += ' WHERE role != \'SuperAdmin\'';
+        }
+
+        query += ' ORDER BY created_at DESC';
+
+        const u = await db.query(query, params);
         res.json(u.rows);
     } catch (err) {
         res.status(500).json({ message: "Erreur" });
@@ -350,9 +363,25 @@ app.get('/api/admin/users', auth(['Admin']), async (req, res) => {
 });
 
 // Edit role / grade
-app.put('/api/admin/users/:id/role-grade', auth(['Admin']), async (req, res) => {
+app.put('/api/admin/users/:id/role-grade', auth(['Admin', 'SuperAdmin']), async (req, res) => {
     try {
         const { role, grade } = req.body;
+
+        // Vérifier la hiérarchie
+        const targetUserQuery = await db.query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+        if (targetUserQuery.rows.length === 0) return res.status(404).json({ message: "Utilisateur non trouvé" });
+        const targetUser = targetUserQuery.rows[0];
+
+        // Un Admin simple ne peut pas modifier un autre Admin ou le SuperAdmin
+        if (req.user.role === 'Admin' && (targetUser.role === 'Admin' || targetUser.role === 'SuperAdmin')) {
+            return res.status(403).json({ message: "Vous n'avez pas les droits pour modifier ce profil" });
+        }
+
+        // Un Admin simple ne peut pas promouvoir quelqu'un en Admin ou SuperAdmin
+        if (req.user.role === 'Admin' && (role === 'Admin' || role === 'SuperAdmin')) {
+            return res.status(403).json({ message: "Seul l'Admin Suprême peut nommer des administrateurs" });
+        }
+
         await db.query('UPDATE users SET role = $1, grade = $2 WHERE id = $3', [role, grade, req.params.id]);
         res.json({ message: "Rôle/Grade mis à jour" });
     } catch (err) {
@@ -360,14 +389,24 @@ app.put('/api/admin/users/:id/role-grade', auth(['Admin']), async (req, res) => 
     }
 });
 
-app.delete('/api/admin/users/:id', auth(['Admin']), async (req, res) => {
+app.delete('/api/admin/users/:id', auth(['Admin', 'SuperAdmin']), async (req, res) => {
     try {
+        const targetUserQuery = await db.query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+        if (targetUserQuery.rows.length === 0) return res.status(404).json({ message: "Utilisateur non trouvé" });
+        const targetUser = targetUserQuery.rows[0];
+
+        // Un Admin simple ne peut pas supprimer un autre Admin ou le SuperAdmin
+        if (req.user.role === 'Admin' && (targetUser.role === 'Admin' || targetUser.role === 'SuperAdmin')) {
+            return res.status(403).json({ message: "Vous ne pouvez pas supprimer un administrateur" });
+        }
+
         await db.query('DELETE FROM users WHERE id = $1', [req.params.id]);
         res.json({ message: "Utilisateur supprimé" });
     } catch (err) {
         res.status(500).json({ message: "Erreur" });
     }
 });
+
 
 
 // ----------------- ACTIVITIES -----------------
@@ -381,7 +420,7 @@ app.get('/api/activities', async (req, res) => {
     }
 });
 
-app.post('/api/activities', auth(['Admin']), async (req, res) => {
+app.post('/api/activities', auth(['Admin', 'SuperAdmin']), async (req, res) => {
     try {
         let { title, description, type, date_start, date_end, inscription_start, inscription_end, sites, price_fcfa, max_participants, is_public, program } = req.body;
 
@@ -397,7 +436,8 @@ app.post('/api/activities', auth(['Admin']), async (req, res) => {
     }
 });
 
-app.put('/api/activities/:id', auth(['Admin']), async (req, res) => {
+app.put('/api/activities/:id', auth(['Admin', 'SuperAdmin']), async (req, res) => {
+
     try {
         let { title, description, type, date_start, date_end, inscription_start, inscription_end, sites, price_fcfa, max_participants, is_public, program } = req.body;
 
@@ -414,7 +454,8 @@ app.put('/api/activities/:id', auth(['Admin']), async (req, res) => {
 });
 
 
-app.delete('/api/activities/:id', auth(['Admin']), async (req, res) => {
+app.delete('/api/activities/:id', auth(['Admin', 'SuperAdmin']), async (req, res) => {
+
     try {
         await db.query('DELETE FROM activities WHERE id = $1', [req.params.id]);
         res.json({ message: "Activité supprimée" });
@@ -424,7 +465,8 @@ app.delete('/api/activities/:id', auth(['Admin']), async (req, res) => {
 });
 
 // ----------------- REGISTRATIONS (CANDIDATURE EVENEMENTS) -----------------
-app.get('/api/admin/registrations', auth(['Admin']), async (req, res) => {
+app.get('/api/admin/registrations', auth(['Admin', 'SuperAdmin']), async (req, res) => {
+
     try {
         const dbRes = await db.query(`
             SELECT r.*, a.title, u.nom, u.prenom, u.email 
@@ -440,7 +482,8 @@ app.get('/api/admin/registrations', auth(['Admin']), async (req, res) => {
     }
 });
 
-app.get('/api/my-registrations', auth(['Membre', 'Admin']), async (req, res) => {
+app.get('/api/my-registrations', auth(['Membre', 'Admin', 'SuperAdmin']), async (req, res) => {
+
     try {
         const dbRes = await db.query(`
             SELECT r.*, a.title, a.date_start, a.date_end, a.sites, a.price_fcfa 
@@ -497,7 +540,8 @@ app.post('/api/register-activity', async (req, res) => {
 });
 
 
-app.put('/api/admin/registrations/:id', auth(['Admin']), async (req, res) => {
+app.put('/api/admin/registrations/:id', auth(['Admin', 'SuperAdmin']), async (req, res) => {
+
     try {
         const { status, payment_status } = req.body;
         if (status) {
@@ -513,7 +557,8 @@ app.put('/api/admin/registrations/:id', auth(['Admin']), async (req, res) => {
 });
 
 
-app.delete('/api/registrations/:id', auth(['Membre', 'Admin']), async (req, res) => {
+app.delete('/api/registrations/:id', auth(['Membre', 'Admin', 'SuperAdmin']), async (req, res) => {
+
     try {
         await db.query('DELETE FROM registrations WHERE id = $1', [req.params.id]);
         res.json({ message: "Désinscription réussie" });
