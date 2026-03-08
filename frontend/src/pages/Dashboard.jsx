@@ -732,19 +732,51 @@ const Dashboard = () => {
             {/* MODAL: USER DETAILS */}
             {selectedUserDetail && (
                 <div className="fixed inset-0 z-[100] bg-stone-900/60 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
-                    <div className="bg-white max-w-2xl w-full rounded-sm shadow-xl p-8 border border-stone-200 relative my-auto">
+                    <div className="bg-white max-w-3xl w-full rounded-sm shadow-xl p-8 border border-stone-200 relative my-auto">
                         <button onClick={() => setSelectedUserDetail(null)} className="absolute top-6 right-6 text-stone-400 hover:text-stone-800"><XCircle size={24} /></button>
-                        <h2 className="text-2xl font-serif text-stone-800 mb-6 border-b border-stone-100 pb-2">Détails : {selectedUserDetail.nom} {selectedUserDetail.prenom}</h2>
-                        <div className="grid grid-cols-2 gap-y-4 text-sm">
-                            <div><strong className="text-stone-400 text-[10px] uppercase block">Email</strong> {selectedUserDetail.email}</div>
-                            <div><strong className="text-stone-400 text-[10px] uppercase block">WhatsApp</strong> {selectedUserDetail.telephone_whatsapp}</div>
-                            <div><strong className="text-stone-400 text-[10px] uppercase block">Profession</strong> {selectedUserDetail.profession || 'N/A'}</div>
-                            <div><strong className="text-stone-400 text-[10px] uppercase block">Adresse</strong> {selectedUserDetail.adresse || 'N/A'}</div>
-                            <div className="col-span-2 bg-stone-50 p-3"><strong className="text-stone-400 text-[10px] uppercase block">Motivation</strong> <p className="mt-1 italic">"{selectedUserDetail.motivation_adhesion}"</p></div>
+                        <h2 className="text-2xl font-serif text-stone-800 mb-6 border-b border-stone-100 pb-2">Dossier Membre : {selectedUserDetail.nom} {selectedUserDetail.prenom}</h2>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                            <div>
+                                <h3 className="text-[#b89047] font-bold text-[10px] uppercase tracking-widest mb-3 border-b border-stone-50">Identité & Contact</h3>
+                                <div className="space-y-3">
+                                    <div><strong className="text-stone-400 text-[10px] uppercase block">Nom Complet</strong> {selectedUserDetail.nom} {selectedUserDetail.prenom}</div>
+                                    {selectedUserDetail.nom_jeune_fille && <div><strong className="text-stone-400 text-[10px] uppercase block">Nom de jeune fille</strong> {selectedUserDetail.nom_jeune_fille}</div>}
+                                    <div><strong className="text-stone-400 text-[10px] uppercase block">Email</strong> {selectedUserDetail.email}</div>
+                                    <div><strong className="text-stone-400 text-[10px] uppercase block">WhatsApp</strong> {selectedUserDetail.telephone_whatsapp}</div>
+                                    {selectedUserDetail.telephone_autre && <div><strong className="text-stone-400 text-[10px] uppercase block">Autre téléphone</strong> {selectedUserDetail.telephone_autre}</div>}
+                                    <div><strong className="text-stone-400 text-[10px] uppercase block">Nationalité</strong> {selectedUserDetail.nationalite || 'N/A'}</div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 className="text-[#b89047] font-bold text-[10px] uppercase tracking-widest mb-3 border-b border-stone-50">Naissance & Civil</h3>
+                                <div className="space-y-3">
+                                    <div><strong className="text-stone-400 text-[10px] uppercase block">Date de naissance</strong> {selectedUserDetail.date_naissance ? new Date(selectedUserDetail.date_naissance).toLocaleDateString() : 'N/A'}</div>
+                                    <div><strong className="text-stone-400 text-[10px] uppercase block">Lieu de naissance</strong> {selectedUserDetail.lieu_naissance || 'N/A'}</div>
+                                    <div><strong className="text-stone-400 text-[10px] uppercase block">État Civil</strong> {selectedUserDetail.etat_civil || 'N/A'}</div>
+                                    <div><strong className="text-stone-400 text-[10px] uppercase block">Enfants</strong> {selectedUserDetail.nombre_enfants || 0}</div>
+                                    <div><strong className="text-stone-400 text-[10px] uppercase block">Profession</strong> {selectedUserDetail.profession || 'N/A'}</div>
+                                </div>
+                            </div>
+
+                            <div className="md:col-span-2">
+                                <h3 className="text-[#b89047] font-bold text-[10px] uppercase tracking-widest mb-3 border-b border-stone-50">Localisation & Aptitudes</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div><strong className="text-stone-400 text-[10px] uppercase block">Adresse</strong> {selectedUserDetail.adresse || 'N/A'}</div>
+                                    <div><strong className="text-stone-400 text-[10px] uppercase block">Aptitudes / Talents</strong> {selectedUserDetail.aptitudes || 'N/A'}</div>
+                                </div>
+                            </div>
+
+                            <div className="md:col-span-2 bg-stone-50 p-4 border border-stone-100 italic">
+                                <strong className="text-[#b89047] text-[10px] uppercase block not-italic mb-2">Motivation d'adhésion</strong>
+                                "{selectedUserDetail.motivation_adhesion || 'Non renseignée'}"
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
+
         </div>
     );
 };
