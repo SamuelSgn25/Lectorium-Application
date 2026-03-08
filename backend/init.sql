@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS users (
   nombre_enfants INTEGER DEFAULT 0,
   motivation_adhesion TEXT,
   password VARCHAR(255) NOT NULL,
-  role VARCHAR(50) DEFAULT 'Membre', -- 'Admin', 'Membre'
+  role VARCHAR(50) DEFAULT 'Membre', -- 'SuperAdmin', 'Admin', 'Membre'
   status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
   grade VARCHAR(100) DEFAULT 'Nouveau membre',
   email_notifications BOOLEAN DEFAULT true,
@@ -55,9 +55,10 @@ CREATE TABLE IF NOT EXISTS activities (
 
 CREATE TABLE IF NOT EXISTS registrations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE NULL,
   activity_id UUID REFERENCES activities(id) ON DELETE CASCADE,
-  status VARCHAR(50) DEFAULT 'pending', -- pending, approved, rejected
+  status VARCHAR(50) DEFAULT 'approved', -- 'approved' par défaut selon la demande
+
   payment_status VARCHAR(50) DEFAULT 'pending', -- pending, paid, physical
   motivation TEXT,
   experience TEXT,
