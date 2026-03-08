@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS activities (
   price_fcfa INTEGER DEFAULT 0,
   max_participants INTEGER,
   is_public BOOLEAN DEFAULT true,
+  program JSONB DEFAULT '[]', -- Programme détaillé par jour
   status VARCHAR(50) DEFAULT 'upcoming', 
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -61,6 +62,8 @@ CREATE TABLE IF NOT EXISTS registrations (
   motivation TEXT,
   experience TEXT,
   attentes TEXT,
+  guest_info JSONB, -- Pour les inscriptions non-membres
+  child_info JSONB, -- Pour les inscriptions d'enfants
   payment_method VARCHAR(50),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -85,3 +88,6 @@ CREATE TABLE IF NOT EXISTS podcasts (
   duration VARCHAR(50),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
+
