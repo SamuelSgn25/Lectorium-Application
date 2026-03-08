@@ -256,42 +256,42 @@ const Dashboard = () => {
     return (
         <div className="min-h-screen bg-[#faf9f6] flex flex-col md:flex-row">
             {/* Sidebar Navigation */}
-            <div className="w-full md:w-64 bg-stone-900 text-stone-300 flex flex-col border-r border-stone-800">
-                <div className="p-8 border-b border-stone-800">
-                    <img src="/logo.png" alt="Lectorium" className="w-12 h-12 mb-4 mx-auto md:mx-0" />
-                    <h2 className="text-white font-serif text-lg leading-tight uppercase tracking-widest">{user?.nom}</h2>
+            <div className="w-full md:w-64 bg-white flex flex-col border-r border-stone-200 shadow-sm">
+                <div className="p-8 border-b border-stone-100 flex flex-col items-center md:items-start">
+                    <img src="/logo.png" alt="Lectorium" className="w-12 h-12 mb-4" />
+                    <h2 className="text-stone-800 font-serif text-lg leading-tight uppercase tracking-widest text-center md:text-left">{user?.nom}</h2>
                     <p className="text-[10px] text-[#b89047] font-bold tracking-[0.2em] mt-1">{user?.role?.toUpperCase()}</p>
                 </div>
 
-                <nav className="flex-1 p-4 space-y-1">
-                    <button onClick={() => setTab('profile')} className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all ${tab === 'profile' ? 'bg-[#b89047] text-white' : 'hover:bg-stone-800 hover:text-white'}`}>
+                <nav className="flex-1 p-4 space-y-2">
+                    <button onClick={() => setTab('profile')} className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all rounded-sm ${tab === 'profile' ? 'bg-[#b89047] text-white shadow-md' : 'text-stone-600 hover:bg-stone-50 hover:text-[#b89047]'}`}>
                         <User size={18} /> Profil & Adhésion
                     </button>
                     {!isAdmin && (
-                        <button onClick={() => setTab('my_events')} className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all ${tab === 'my_events' ? 'bg-[#b89047] text-white' : 'hover:bg-stone-800 hover:text-white'}`}>
+                        <button onClick={() => setTab('my_events')} className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all rounded-sm ${tab === 'my_events' ? 'bg-[#b89047] text-white shadow-md' : 'text-stone-600 hover:bg-stone-50 hover:text-[#b89047]'}`}>
                             <Calendar size={18} /> Mes Conférences
                         </button>
                     )}
                     {isAdmin && (
                         <>
-                            <button onClick={() => setTab('events')} className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all ${tab === 'events' ? 'bg-[#b89047] text-white' : 'hover:bg-stone-800 hover:text-white'}`}>
+                            <button onClick={() => setTab('events')} className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all rounded-sm ${tab === 'events' ? 'bg-[#b89047] text-white shadow-md' : 'text-stone-600 hover:bg-stone-50 hover:text-[#b89047]'}`}>
                                 <Calendar size={18} /> Gestion Activités
                             </button>
-                            <button onClick={() => setTab('registrations')} className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all ${tab === 'registrations' ? 'bg-[#b89047] text-white' : 'hover:bg-stone-800 hover:text-white'}`}>
+                            <button onClick={() => setTab('registrations')} className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all rounded-sm ${tab === 'registrations' ? 'bg-[#b89047] text-white shadow-md' : 'text-stone-600 hover:bg-stone-50 hover:text-[#b89047]'}`}>
                                 <CheckCircle size={18} /> Inscriptions
                             </button>
-                            <button onClick={() => setTab('users')} className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all ${tab === 'users' ? 'bg-[#b89047] text-white' : 'hover:bg-stone-800 hover:text-white'}`}>
+                            <button onClick={() => setTab('users')} className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all rounded-sm ${tab === 'users' ? 'bg-[#b89047] text-white shadow-md' : 'text-stone-600 hover:bg-stone-50 hover:text-[#b89047]'}`}>
                                 <Users size={18} /> Membres & Demandes
                             </button>
                         </>
                     )}
-                    <button onClick={() => setTab('settings')} className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all ${tab === 'settings' ? 'bg-[#b89047] text-white' : 'hover:bg-stone-800 hover:text-white'}`}>
+                    <button onClick={() => setTab('settings')} className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all rounded-sm ${tab === 'settings' ? 'bg-[#b89047] text-white shadow-md' : 'text-stone-600 hover:bg-stone-50 hover:text-[#b89047]'}`}>
                         <Settings size={18} /> Paramètres
                     </button>
                 </nav>
 
-                <div className="p-4 border-t border-stone-800">
-                    <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-stone-800 transition-all">
+                <div className="p-4 border-t border-stone-100">
+                    <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition-all rounded-sm">
                         <LogOut size={18} /> Déconnexion
                     </button>
                 </div>
