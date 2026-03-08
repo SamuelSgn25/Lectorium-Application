@@ -291,9 +291,9 @@ app.post('/api/users', auth(['Admin']), async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Erreur serveur" }); }
 });
 
-app.get('/api/users', auth(['Admin']), async (req, res) => {
+app.get('/api/admin/users', auth(['Admin']), async (req, res) => {
     try {
-        const u = await db.query('SELECT id, nom, prenom, email, role, status, grade, telephone_whatsapp, created_at FROM users ORDER BY created_at DESC');
+        const u = await db.query('SELECT * FROM users ORDER BY created_at DESC');
         res.json(u.rows);
     } catch (err) {
         res.status(500).json({ message: "Erreur" });
@@ -301,7 +301,7 @@ app.get('/api/users', auth(['Admin']), async (req, res) => {
 });
 
 // Validation Adhesion
-app.put('/api/users/:id/status', auth(['Admin']), async (req, res) => {
+app.put('/api/admin/users/:id/status', auth(['Admin']), async (req, res) => {
     try {
         const { status } = req.body;
         await db.query('UPDATE users SET status = $1 WHERE id = $2', [status, req.params.id]);
@@ -314,7 +314,6 @@ app.put('/api/users/:id/status', auth(['Admin']), async (req, res) => {
                     await transporter.sendMail({
                         from: fromEmail,
                         to: u.email,
-
                         subject: "Votre adhésion est confirmée",
                         html: `
                             <h2 style="color: #b89047;">Adhésion Validée !</h2>
@@ -328,7 +327,6 @@ app.put('/api/users/:id/status', auth(['Admin']), async (req, res) => {
                             <p style="margin-top: 20px;">
                                 <a href="https://lectorium-application.vercel.app/login" style="color: #b89047; font-weight: bold;">Cliquez ici pour vous connecter</a>
                             </p>
-
                         `
                     });
                 } catch (mailErr) { console.error("Erreur email d'approbation", mailErr); }
@@ -341,8 +339,18 @@ app.put('/api/users/:id/status', auth(['Admin']), async (req, res) => {
     }
 });
 
+
+app.get('/api/admin/users', auth(['Admin']), async (req, res) => {
+    try {
+        const u = await db.query('SELECT * FROM users ORDER BY created_at DESC');
+        res.json(u.rows);
+    } catch (err) {
+        res.status(500).json({ message: "Erreur" });
+    }
+});
+
 // Edit role / grade
-app.put('/api/users/:id/role', auth(['Admin']), async (req, res) => {
+app.put('/api/admin/users/:id/role-grade', auth(['Admin']), async (req, res) => {
     try {
         const { role, grade } = req.body;
         await db.query('UPDATE users SET role = $1, grade = $2 WHERE id = $3', [role, grade, req.params.id]);
@@ -352,7 +360,7 @@ app.put('/api/users/:id/role', auth(['Admin']), async (req, res) => {
     }
 });
 
-app.delete('/api/users/:id', auth(['Admin']), async (req, res) => {
+app.delete('/api/admin/users/:id', auth(['Admin']), async (req, res) => {
     try {
         await db.query('DELETE FROM users WHERE id = $1', [req.params.id]);
         res.json({ message: "Utilisateur supprimé" });
@@ -360,6 +368,7 @@ app.delete('/api/users/:id', auth(['Admin']), async (req, res) => {
         res.status(500).json({ message: "Erreur" });
     }
 });
+
 
 // ----------------- ACTIVITIES -----------------
 app.get('/api/activities', async (req, res) => {
@@ -415,21 +424,38 @@ app.delete('/api/activities/:id', auth(['Admin']), async (req, res) => {
 });
 
 // ----------------- REGISTRATIONS (CANDIDATURE EVENEMENTS) -----------------
-app.get('/api/registrations', auth(['Admin', 'Membre']), async (req, res) => {
+app.get('/api/admin/registrations', auth(['Admin']), async (req, res) => {
     try {
-        const adminFetchMode = req.query.mode === 'all';
-        if (req.user.role === 'Admin' && adminFetchMode) {
-            const dbRes = await db.query('SELECT r.*, a.title, u.nom, u.prenom, u.email FROM registrations r JOIN activities a ON r.activity_id = a.id JOIN users u ON r.user_id = u.id ORDER BY r.created_at DESC');
-            return res.json(dbRes.rows);
-        } else {
-            const dbRes = await db.query('SELECT r.*, a.title, a.date_start, a.date_end, a.sites, a.price_fcfa FROM registrations r JOIN activities a ON r.activity_id = a.id WHERE r.user_id = $1 ORDER BY a.date_start DESC', [req.user.id]);
-            return res.json(dbRes.rows);
-        }
+        const dbRes = await db.query(`
+            SELECT r.*, a.title, u.nom, u.prenom, u.email 
+            FROM registrations r 
+            JOIN activities a ON r.activity_id = a.id 
+            LEFT JOIN users u ON r.user_id = u.id 
+            ORDER BY r.created_at DESC
+        `);
+        res.json(dbRes.rows);
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Erreur serveur" });
     }
 });
+
+app.get('/api/my-registrations', auth(['Membre', 'Admin']), async (req, res) => {
+    try {
+        const dbRes = await db.query(`
+            SELECT r.*, a.title, a.date_start, a.date_end, a.sites, a.price_fcfa 
+            FROM registrations r 
+            JOIN activities a ON r.activity_id = a.id 
+            WHERE r.user_id = $1 
+            ORDER BY a.date_start DESC
+        `, [req.user.id]);
+        res.json(dbRes.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Erreur serveur" });
+    }
+});
+
 
 app.post('/api/register-activity', async (req, res) => {
     try {
@@ -471,7 +497,7 @@ app.post('/api/register-activity', async (req, res) => {
 });
 
 
-app.put('/api/registrations/:id/status', auth(['Admin']), async (req, res) => {
+app.put('/api/admin/registrations/:id', auth(['Admin']), async (req, res) => {
     try {
         const { status, payment_status } = req.body;
         if (status) {
@@ -485,6 +511,7 @@ app.put('/api/registrations/:id/status', auth(['Admin']), async (req, res) => {
         res.status(500).json({ message: "Erreur" });
     }
 });
+
 
 app.delete('/api/registrations/:id', auth(['Membre', 'Admin']), async (req, res) => {
     try {
