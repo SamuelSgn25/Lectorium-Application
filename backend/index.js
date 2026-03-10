@@ -100,6 +100,38 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
+// Look up member by matricule (Public for quick registration)
+app.get('/api/members/matricule/:matricule', async (req, res) => {
+    try {
+        const { matricule } = req.params;
+        const member = await db.query(
+            `SELECT nom, prenom, sexe, centre as center, grade as aspect, date_naissance 
+             FROM users 
+             WHERE matricule = $1`,
+            [matricule]
+        );
+        if (member.rows.length === 0) return res.status(404).json({ message: "Matricule non trouvé" });
+
+        const m = member.rows[0];
+        let age = null;
+        if (m.date_naissance) {
+            const birthDate = new Date(m.date_naissance);
+            const today = new Date();
+            age = today.getFullYear() - birthDate.getFullYear();
+            const m_diff = today.getMonth() - birthDate.getMonth();
+            if (m_diff < 0 || (m_diff === 0 && today.getDate() < birthDate.getDate())) {
+                age--;
+            }
+        }
+
+        res.json({ ...m, age });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Erreur" });
+    }
+});
+
+
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -188,41 +220,42 @@ app.get('/api/users/me', auth(), async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Erreur" }); }
 });
 
-// Update Profile
+// Update Profile (Member themselves)
 app.put('/api/users/me', auth(), async (req, res) => {
     try {
         const {
-            nom, prenom, email, password,
-            email_notifications, sms_notifications, adresse,
-            telephone_whatsapp, telephone_autre, profession
+            nom, nom_jeune_fille, prenom, date_naissance, lieu_naissance,
+            nationalite, adresse, email, telephone_whatsapp, telephone_autre,
+            etat_civil, profession, aptitudes, nombre_enfants, motivation_adhesion,
+            password, sexe, centre, matricule
         } = req.body;
 
-        // Si l'email est modifié, vérifier son unicité
         if (email) {
             const emailCheck = await db.query('SELECT id FROM users WHERE email = $1 AND id != $2', [email, req.user.id]);
-            if (emailCheck.rows.length > 0) {
-                return res.status(400).json({ message: "Cette adresse email est déjà utilisée." });
-            }
+            if (emailCheck.rows.length > 0) return res.status(400).json({ message: "L'email est déjà utilisé" });
+        }
+        if (matricule) {
+            const matCheck = await db.query('SELECT id FROM users WHERE matricule = $1 AND id != $2', [matricule, req.user.id]);
+            if (matCheck.rows.length > 0) return res.status(400).json({ message: "Le matricule est déjà utilisé" });
         }
 
         let query = `UPDATE users SET 
-            nom = COALESCE($1, nom), 
-            prenom = COALESCE($2, prenom), 
-            email = COALESCE($3, email), 
-            email_notifications = $4, 
-            sms_notifications = $5, 
-            adresse = $6, 
-            telephone_whatsapp = $7, 
-            telephone_autre = $8, 
-            profession = $9`;
+            nom = COALESCE($1, nom), prenom = COALESCE($2, prenom), email = COALESCE($3, email),
+            nom_jeune_fille = COALESCE($4, nom_jeune_fille), date_naissance = COALESCE($5, date_naissance),
+            lieu_naissance = COALESCE($6, lieu_naissance), nationalite = COALESCE($7, nationalite),
+            adresse = COALESCE($8, adresse), telephone_whatsapp = COALESCE($9, telephone_whatsapp),
+            telephone_autre = COALESCE($10, telephone_autre), etat_civil = COALESCE($11, etat_civil),
+            profession = COALESCE($12, profession), aptitudes = COALESCE($13, aptitudes),
+            nombre_enfants = COALESCE($14, nombre_enfants), motivation_adhesion = COALESCE($15, motivation_adhesion),
+            sexe = COALESCE($16, sexe), centre = COALESCE($17, centre), matricule = COALESCE($18, matricule)`;
 
         let params = [
-            nom, prenom, email,
-            email_notifications, sms_notifications, adresse,
-            telephone_whatsapp, telephone_autre, profession
+            nom, prenom, email, nom_jeune_fille, date_naissance || null,
+            lieu_naissance, nationalite, adresse, telephone_whatsapp,
+            telephone_autre, etat_civil, profession, aptitudes,
+            nombre_enfants || 0, motivation_adhesion, sexe, centre, matricule
         ];
 
-        // Gérer le mot de passe s'il est fourni
         if (password && password.trim() !== "") {
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(password, salt);
@@ -237,23 +270,31 @@ app.put('/api/users/me', auth(), async (req, res) => {
         res.json({ message: "Profil mis à jour" });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: "Erreur lors de la mise à jour du profil" });
+        res.status(500).json({ message: "Erreur serveur" });
     }
 });
+
 
 
 // ----------------- USERS ADMIN -----------------
 app.post('/api/users', auth(['Admin', 'SuperAdmin']), async (req, res) => {
     try {
-        const { nom, prenom, email, role, password } = req.body;
+        const { nom, prenom, email, role, password, matricule, sexe, centre, grade } = req.body;
         const userExists = await db.query('SELECT * FROM users WHERE email = $1', [email]);
         if (userExists.rows.length > 0) return res.status(400).json({ message: "Cet email existe déjà" });
+        if (matricule) {
+            const matExists = await db.query('SELECT * FROM users WHERE matricule = $1', [matricule]);
+            if (matExists.rows.length > 0) return res.status(400).json({ message: "Ce matricule est déjà utilisé" });
+        }
+
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
         await db.query(
-            `INSERT INTO users (nom, prenom, email, role, status, grade, password) VALUES ($1, $2, $3, $4, 'approved', 'Nouveau membre', $5)`,
-            [nom, prenom, email, role, hashedPassword]
+            `INSERT INTO users (nom, prenom, email, role, status, grade, password, matricule, sexe, centre) 
+             VALUES ($1, $2, $3, $4, 'approved', $5, $6, $7, $8, $9)`,
+            [nom, prenom, email, role, grade || 'Nouveau membre', hashedPassword, matricule, sexe, centre]
         );
+
 
         if (process.env.SMTP_USER) {
             try {
