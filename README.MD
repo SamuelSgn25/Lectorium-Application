@@ -28,7 +28,7 @@ Assurer sécurité et conformité RGPD.
 | React.js                              | Node Js(Express)                                       |
 | Tailwind CSS                          | PostgreSQL                                             |
 | Déploiement : Vercel                  | API REST sécurisée                                     |
-| Responsive Desktop & Tablette         | Auth JWT / Sanctum                                     |
+| Responsive Desktop & Tablette         | Auth JWT                                               |
 | SEO optimisé                          | Intégration paiements : Flutterwave, FedaPay, CinetPay |
 
 
