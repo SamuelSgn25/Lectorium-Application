@@ -26,6 +26,12 @@ app.use(express.json());
 
 // Helper function to notify all admins
 const notifyAdmins = async (subject, htmlContent, excludeUserId = null) => {
+    // Check if SMTP is configured
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
+        console.warn("SMTP is not configured. Skipping admin notification.");
+        return;
+    }
+
     try {
         const admins = await db.query("SELECT email FROM users WHERE role IN ('Admin', 'SuperAdmin')");
         for (const admin of admins.rows) {
@@ -52,7 +58,10 @@ const auth = (roles = []) => {
             const decoded = jwt.verify(token, JWT_SECRET);
             req.user = decoded;
 
-            if (roles.length > 0 && !roles.includes(decoded.role)) {
+            const userRank = decoded.role ? decoded.role.toLowerCase() : "";
+            const authorizedRoles = roles.map(r => r.toLowerCase());
+
+            if (roles.length > 0 && !authorizedRoles.includes(userRank)) {
                 return res.status(403).json({ message: "Accès refusé" });
             }
             next();
@@ -620,13 +629,13 @@ app.get('/api/my-registrations', auth(['Membre', 'Admin', 'SuperAdmin']), async 
 
 app.post('/api/register-activity', async (req, res) => {
     try {
-        const { activity_id, motivation, experience, attentes, payment_method, guest_info, child_info } = req.body;
-
+        const { activity_id, selected_site, motivation, experience, attentes, payment_method, guest_info, child_info } = req.body;
+        
         // Vérifier si l'activité existe et son prix
         const activityQuery = await db.query('SELECT * FROM activities WHERE id = $1', [activity_id]);
         if (activityQuery.rows.length === 0) return res.status(404).json({ message: "Activité non trouvée" });
         const activity = activityQuery.rows[0];
-        // Date restriction: Only if date_now >= inscription_start
+        
         const now = new Date();
         if (activity.inscription_start && now < new Date(activity.inscription_start)) {
             return res.status(400).json({ message: "La période d'inscription pour cet événement n'est pas encore ouverte." });
@@ -645,7 +654,6 @@ app.post('/api/register-activity', async (req, res) => {
             } catch (e) { }
         }
 
-        // Register by Matricule (Third party)
         if (req.body.register_by_matricule) {
             const memberToRegister = await db.query('SELECT * FROM users WHERE matricule = $1', [req.body.register_by_matricule]);
             if (memberToRegister.rows.length === 0) return res.status(404).json({ message: "Matricule non trouvé" });
@@ -661,9 +669,9 @@ app.post('/api/register-activity', async (req, res) => {
         let pmtStatus = (activity.price_fcfa === 0 || activity.price_fcfa === null) ? 'paid' : (payment_method === 'physical' ? 'physical' : 'pending');
 
         const dbRes = await db.query(
-            `INSERT INTO registrations (user_id, activity_id, status, payment_status, payment_method, guest_info, child_info) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-            [userId, activity_id, baseStatus, pmtStatus, payment_method, JSON.stringify(guest_info || null), JSON.stringify(child_info || null)]
+            `INSERT INTO registrations (user_id, activity_id, selected_site, status, payment_status, payment_method, guest_info, child_info) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+            [userId, activity_id, selected_site, baseStatus, pmtStatus, payment_method, JSON.stringify(guest_info || null), JSON.stringify(child_info || null)]
         );
 
         res.status(201).json(dbRes.rows[0]);
