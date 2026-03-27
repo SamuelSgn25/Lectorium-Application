@@ -24,6 +24,25 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Helper function to notify all admins
+const notifyAdmins = async (subject, htmlContent, excludeUserId = null) => {
+    try {
+        const admins = await db.query("SELECT email FROM users WHERE role IN ('Admin', 'SuperAdmin')");
+        for (const admin of admins.rows) {
+            if (excludeUserId && admin.id === excludeUserId) continue;
+            await transporter.sendMail({
+                from: fromEmail,
+                to: admin.email,
+                subject: subject,
+                html: htmlContent
+            });
+        }
+    } catch (err) {
+        console.error("Error sending admin notifications:", err);
+    }
+};
+
+
 const JWT_SECRET = process.env.JWT_SECRET;
 
 const auth = (roles = []) => {
@@ -239,6 +258,37 @@ app.put('/api/users/me', auth(), async (req, res) => {
             if (matCheck.rows.length > 0) return res.status(400).json({ message: "Le matricule est déjà utilisé" });
         }
 
+        // Logic for restricted fields (matricule, centre)
+        const currentUser = await db.query('SELECT role, matricule, centre, nom, prenom FROM users WHERE id = $1', [req.user.id]);
+        const userRole = currentUser.rows[0].role;
+        const oldMatricule = currentUser.rows[0].matricule;
+        const oldCentre = currentUser.rows[0].centre;
+
+        let finalMatricule = matricule;
+        let finalCentre = centre;
+
+        if (userRole === 'Membre') {
+            // Members cannot change their own matricule or center
+            finalMatricule = oldMatricule;
+            finalCentre = oldCentre;
+        } else if (matricule !== undefined && centre !== undefined) {
+             // Admin/SuperAdmin changed their own info
+             if (matricule !== oldMatricule || centre !== oldCentre) {
+                await notifyAdmins(
+                    "Notification de changement d'informations sensibles (Admin)",
+                    `
+                        <h2 style="color: #b89047;">Alerte de modification de profil</h2>
+                        <p>L'administrateur <strong>${currentUser.rows[0].prenom} ${currentUser.rows[0].nom}</strong> a modifié ses propres informations sensibles :</p>
+                        <ul>
+                            <li>Ancien Matricule: ${oldMatricule || 'N/A'} -> Nouveau: ${matricule}</li>
+                            <li>Ancien Centre: ${oldCentre || 'N/A'} -> Nouveau: ${centre}</li>
+                        </ul>
+                    `,
+                    req.user.id
+                );
+             }
+        }
+
         let query = `UPDATE users SET 
             nom = COALESCE($1, nom), prenom = COALESCE($2, prenom), email = COALESCE($3, email),
             nom_jeune_fille = COALESCE($4, nom_jeune_fille), date_naissance = COALESCE($5, date_naissance),
@@ -253,8 +303,9 @@ app.put('/api/users/me', auth(), async (req, res) => {
             nom, prenom, email, nom_jeune_fille, date_naissance || null,
             lieu_naissance, nationalite, adresse, telephone_whatsapp,
             telephone_autre, etat_civil, profession, aptitudes,
-            nombre_enfants || 0, motivation_adhesion, sexe, centre, matricule
+            nombre_enfants || 0, motivation_adhesion, sexe, finalCentre, finalMatricule
         ];
+
 
         if (password && password.trim() !== "") {
             const salt = await bcrypt.genSalt(10);
@@ -423,8 +474,34 @@ app.put('/api/admin/users/:id/role-grade', auth(['Admin', 'SuperAdmin']), async 
             return res.status(403).json({ message: "Seul l'Admin Suprême peut nommer des administrateurs" });
         }
 
-        await db.query('UPDATE users SET role = $1, grade = $2 WHERE id = $3', [role, grade, req.params.id]);
-        res.json({ message: "Rôle/Grade mis à jour" });
+        const { matricule, centre } = req.body;
+        const oldInfo = await db.query('SELECT matricule, centre, nom, prenom FROM users WHERE id = $1', [req.params.id]);
+
+        if (matricule !== undefined || centre !== undefined) {
+             if (matricule !== oldInfo.rows[0].matricule || centre !== oldInfo.rows[0].centre) {
+                const modifier = await db.query('SELECT nom, prenom FROM users WHERE id = $1', [req.user.id]);
+                await notifyAdmins(
+                    "Notification de changement d'informations d'un membre",
+                    `
+                        <h2 style="color: #b89047;">Changement d'informations sensibles</h2>
+                        <p>L'administrateur <strong>${modifier.rows[0].prenom} ${modifier.rows[0].nom}</strong> a modifié les informations de <strong>${oldInfo.rows[0].prenom} ${oldInfo.rows[0].nom}</strong> :</p>
+                        <ul>
+                            <li>Matricule: ${oldInfo.rows[0].matricule || 'N/A'} -> ${matricule || oldInfo.rows[0].matricule}</li>
+                            <li>Centre: ${oldInfo.rows[0].centre || 'N/A'} -> ${centre || oldInfo.rows[0].centre}</li>
+                        </ul>
+                    `
+                );
+             }
+        }
+
+        await db.query(`UPDATE users SET 
+            role = COALESCE($1, role), 
+            grade = COALESCE($2, grade),
+            matricule = COALESCE($3, matricule),
+            centre = COALESCE($4, centre)
+            WHERE id = $5`, [role, grade, matricule, centre, req.params.id]);
+        res.json({ message: "Utilisateur mis à jour" });
+
     } catch (err) {
         res.status(500).json({ message: "Erreur" });
     }
@@ -549,6 +626,14 @@ app.post('/api/register-activity', async (req, res) => {
         const activityQuery = await db.query('SELECT * FROM activities WHERE id = $1', [activity_id]);
         if (activityQuery.rows.length === 0) return res.status(404).json({ message: "Activité non trouvée" });
         const activity = activityQuery.rows[0];
+        // Date restriction: Only if date_now >= inscription_start
+        const now = new Date();
+        if (activity.inscription_start && now < new Date(activity.inscription_start)) {
+            return res.status(400).json({ message: "La période d'inscription pour cet événement n'est pas encore ouverte." });
+        }
+        if (activity.inscription_end && now > new Date(activity.inscription_end)) {
+            return res.status(400).json({ message: "La période d'inscription pour cet événement est terminée." });
+        }
 
         let userId = null;
         let authHeader = req.headers.authorization;
@@ -558,6 +643,13 @@ app.post('/api/register-activity', async (req, res) => {
                 const decoded = jwt.verify(token, JWT_SECRET);
                 userId = decoded.id;
             } catch (e) { }
+        }
+
+        // Register by Matricule (Third party)
+        if (req.body.register_by_matricule) {
+            const memberToRegister = await db.query('SELECT * FROM users WHERE matricule = $1', [req.body.register_by_matricule]);
+            if (memberToRegister.rows.length === 0) return res.status(404).json({ message: "Matricule non trouvé" });
+            userId = memberToRegister.rows[0].id; // Override userId to the found member
         }
 
         if (userId && !guest_info && !child_info) {
@@ -573,6 +665,7 @@ app.post('/api/register-activity', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
             [userId, activity_id, baseStatus, pmtStatus, payment_method, JSON.stringify(guest_info || null), JSON.stringify(child_info || null)]
         );
+
         res.status(201).json(dbRes.rows[0]);
     } catch (err) {
         console.error(err);
@@ -612,10 +705,53 @@ app.delete('/api/registrations/:id', auth(['Membre', 'Admin', 'SuperAdmin']), as
 // ----------------- NEWS & PODCASTS (MOCKS API endpoints) -----------------
 app.get('/api/news', async (req, res) => {
     try {
-        const q = await db.query('SELECT * FROM news ORDER BY created_at DESC');
+        let userId = null;
+        let role = 'guest';
+
+        let authHeader = req.headers.authorization;
+        if (authHeader) {
+            try {
+                const token = authHeader.split(" ")[1];
+                const decoded = jwt.verify(token, JWT_SECRET);
+                userId = decoded.id;
+                role = decoded.role;
+            } catch (e) { }
+        }
+
+        let query = 'SELECT * FROM news ';
+        let params = [];
+
+        if (role === 'SuperAdmin') {
+            // Can see everything
+        } else if (role === 'Admin') {
+            query += "WHERE visibility IN ('public', 'members', 'admins')";
+        } else if (role === 'Membre') {
+            query += "WHERE visibility IN ('public', 'members')";
+        } else {
+            query += "WHERE visibility = 'public'";
+        }
+
+        query += ' ORDER BY created_at DESC';
+
+        const q = await db.query(query, params);
         res.json(q.rows);
     } catch (err) { res.status(500).json({ message: "Erreur" }); }
 });
+
+app.post('/api/news', auth(['Admin', 'SuperAdmin']), async (req, res) => {
+    try {
+        const { title, content, category, author, image_url, file_url, visibility } = req.body;
+        const result = await db.query(
+            'INSERT INTO news (title, content, category, author, image_url, file_url, visibility) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            [title, content, category, author, image_url, file_url, visibility || 'public']
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Erreur lors de la création du communiqué" });
+    }
+});
+
 
 app.get('/api/podcasts', async (req, res) => {
     try {
