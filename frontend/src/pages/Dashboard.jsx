@@ -2,6 +2,7 @@ import { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
 import { CheckCircle, XCircle, Clock, Settings, Users, Calendar, Plus, Trash2, Edit, FileDown, Eye, EyeOff, Menu, X } from 'lucide-react';
+import ApplicationForm from '../components/ApplicationForm';
 
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -34,11 +35,12 @@ const Dashboard = () => {
 
     const [selectedUserDetail, setSelectedUserDetail] = useState(null);
     const [viewingRegistrations, setViewingRegistrations] = useState(null); // activity object for guests/export
-    const [thirdPartyForm, setThirdPartyForm] = useState({ type: 'guest', guest: { nom: '', prenom: '', email: '', localisation: '', whatsapp: '', telephone: '' }, child: { nom: '', prenom: '', grade: 'Jeunesse A entre 6 et 9 ans' }, payment_method: 'physical' });
+    const [thirdPartyForm, setThirdPartyForm] = useState({ type: 'guest', guest: { nom: '', prenom: '', email: '', localisation: '', whatsapp: '', telephone: '' }, child: { nom: '', prenom: '', grade: 'Jeunesse A entre 6 et 9 ans' }, selected_site: '', payment_method: 'physical' });
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [matriculeSearch, setMatriculeSearch] = useState('');
     const [foundMember, setFoundMember] = useState(null);
     const [viewingProgram, setViewingProgram] = useState(null);
+    const [selectedEvent, setSelectedEvent] = useState(null);
 
 
 
@@ -51,7 +53,8 @@ const Dashboard = () => {
 
     const fetchData = async () => {
         try {
-            if (user?.role === 'Admin' || user?.role === 'SuperAdmin') {
+        const userRank = user?.role ? user.role.toLowerCase() : "";
+        if (userRank === 'admin' || userRank === 'super_admin' || userRank === 'superadmin') {
                 const [regAll, act, usr, regSelf, me] = await Promise.all([
                     axios.get('/api/admin/registrations', { headers }),
                     axios.get('/api/activities'),
@@ -123,7 +126,8 @@ const Dashboard = () => {
 
     useEffect(() => {
         if (user) {
-            if (user.role !== 'Admin') setTab('planning');
+            const userRank = user.role ? user.role.toLowerCase() : "";
+            if (userRank !== 'admin' && userRank !== 'super_admin' && userRank !== 'superadmin') setTab('planning');
             fetchData();
         }
     }, [user]);
@@ -281,10 +285,25 @@ const Dashboard = () => {
     };
 
     const applyForEvent = async (activity_id, matriculeInfo = null) => {
-        if (!window.confirm("Confirmer l'inscription à cet événement ?")) return;
+        const act = data.activities.find(a => a.id === activity_id);
+        if (!act) return;
+
+        let selected_site = null;
+        if (act.sites && act.sites.length > 1) {
+            const list = act.sites.join('\n- ');
+            const choice = window.prompt(`Sur quel site souhaitez-vous inscrire cet élève ?\n\n- ${list}\n\n(Veuillez taper le nom du site exactement comme affiché)`);
+            if (!choice) return;
+            if (!act.sites.includes(choice)) { alert("Site invalide."); return; }
+            selected_site = choice;
+        } else if (act.sites && act.sites.length === 1) {
+            selected_site = act.sites[0];
+        }
+
+        if (!window.confirm(`Confirmer l'inscription à ${act.title}${selected_site ? ` sur le site de ${selected_site}` : ''} ?`)) return;
         try {
             const payload = {
                 activity_id,
+                selected_site,
                 motivation: 'Inscription Rapide.',
                 experience: '',
                 attentes: '',
@@ -311,11 +330,42 @@ const Dashboard = () => {
         } catch (err) { alert(err.response?.data?.message || 'Erreur'); }
     };
 
+    const registerThirdParty = async (e, activity_id) => {
+        if (e) e.preventDefault();
+        const act = data.activities.find(a => a.id === activity_id);
+        if (act && act.sites && act.sites.length > 0 && !thirdPartyForm.selected_site) { alert("Veuillez sélectionner un site."); return; }
+        
+        try {
+            const payload = {
+                activity_id,
+                selected_site: thirdPartyForm.selected_site,
+                motivation: 'Inscription Tierce (Invité/Enfant).',
+                experience: '',
+                attentes: '',
+                payment_method: thirdPartyForm.payment_method
+            };
+
+            if (thirdPartyForm.type === 'guest') {
+                if (!thirdPartyForm.guest.nom || !thirdPartyForm.guest.prenom) { alert("Veuillez remplir au moins le nom et le prénom de l'invité."); return; }
+                payload.guest_info = thirdPartyForm.guest;
+            } else {
+                if (!thirdPartyForm.child.nom || !thirdPartyForm.child.prenom) { alert("Veuillez remplir au moins le nom et le prénom de l'enfant."); return; }
+                payload.child_info = thirdPartyForm.child;
+            }
+
+            await axios.post('/api/register-activity', payload, { headers });
+            alert("Inscription du tiers réussie !");
+            setThirdPartyForm({ type: 'guest', guest: { nom: '', prenom: '', email: '', localisation: '', whatsapp: '', telephone: '' }, child: { nom: '', prenom: '', grade: 'Jeunesse A entre 6 et 9 ans' }, payment_method: 'physical' });
+            fetchData();
+        } catch (err) { alert(err.response?.data?.message || 'Erreur lors de l\'inscription du tiers'); }
+    };
+
 
     if (!user) return <div className="text-center mt-24 text-stone-500">Veuillez vous connecter.</div>;
 
-    const isAdmin = user.role === 'Admin' || user.role === 'SuperAdmin';
-    const isSuperAdmin = user.role === 'SuperAdmin';
+    const userRank = user.role ? user.role.toLowerCase() : "";
+    const isAdmin = userRank === 'admin' || userRank === 'superadmin' || userRank === 'super_admin';
+    const isSuperAdmin = userRank === 'superadmin' || userRank === 'super_admin';
 
 
     return (
@@ -387,8 +437,8 @@ const Dashboard = () => {
                 </div>
 
                 {/* Main Content */}
-                <div className="flex-1 p-4 md:p-8 overflow-x-hidden">
-                    <div className="max-w-7xl mx-auto bg-white border border-stone-200 p-6 md:p-10 shadow-sm min-h-full">
+                <div className="flex-1 p-2 sm:p-4 md:p-8 overflow-x-hidden">
+                    <div className="max-w-7xl mx-auto bg-white border border-stone-200 p-4 sm:p-6 md:p-10 shadow-sm min-h-full">
 
                         {tab === 'overview' && isAdmin && (
                             <div className="space-y-6">
@@ -486,7 +536,7 @@ const Dashboard = () => {
                                                     <div key={r.id} className="bg-stone-50 p-4 border border-stone-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                                         <div>
                                                             <h3 className="font-serif text-[#b89047] text-lg">{r.title}</h3>
-                                                            <p className="text-stone-500 text-sm mt-1">{new Date(r.date_start).toLocaleString('fr-FR')} • Sites : {r.sites ? r.sites.join(', ') : ''} • {r.price_fcfa} CFA</p>
+                                                            <p className="text-stone-500 text-sm mt-1">{new Date(r.date_start).toLocaleString('fr-FR', { hour12: false })} • Site : {r.selected_site || 'Global'} • {r.price_fcfa} CFA</p>
                                                         </div>
                                                         <div className="flex gap-2 flex-wrap">
                                                             <span className={`px-3 py-1 text-xs border uppercase tracking-wider font-semibold ${r.status === 'approved' ? 'border-green-200 bg-green-50 text-green-700' : r.status === 'rejected' ? 'border-red-200 bg-red-50 text-red-700' : 'border-yellow-200 bg-yellow-50 text-yellow-700'}`}>
@@ -534,13 +584,18 @@ const Dashboard = () => {
                                                             ) : (
                                                                 <div className="grid grid-cols-2 gap-2">
                                                                     <button
-                                                                        onClick={() => applyForEvent(a.id)}
+                                                                        onClick={() => setSelectedEvent(a)}
                                                                         disabled={isRegistered || !isDateValid}
                                                                         className={`py-3 text-[10px] font-bold uppercase tracking-widest border transition-colors ${isRegistered ? 'bg-green-100 text-green-700 border-green-200' : isDateValid ? 'bg-stone-800 border-stone-800 text-white hover:bg-stone-700' : 'bg-stone-100 text-stone-400 border-stone-200 cursor-not-allowed'}`}
                                                                     >
                                                                         {isRegistered ? 'Inscrit' : "M'inscrire"}
                                                                     </button>
-                                                                    <button onClick={() => setViewingRegistrations(a)} className="py-3 text-[10px] text-[#b89047] uppercase font-bold tracking-widest border border-[#b89047] hover:bg-[#b89047] hover:text-white transition-colors">Inscrire tiers</button>
+                                                                    <button
+                                                                        onClick={() => setSelectedEvent(a)}
+                                                                        className="py-3 text-[10px] text-[#b89047] uppercase font-bold tracking-widest border border-[#b89047] hover:bg-[#b89047] hover:text-white transition-colors"
+                                                                    >
+                                                                        Inscrire tiers
+                                                                    </button>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -633,7 +688,7 @@ const Dashboard = () => {
                                             <tr><th className="p-4 font-medium">Date</th><th className="p-4 font-medium">Nom complet</th><th className="p-4 font-medium">Contact</th><th className="p-4 font-medium">Statut / Rôle</th><th className="p-4 font-medium">Grade Admin</th><th className="p-4 font-medium min-w-[120px]">Actions</th></tr>
                                         </thead>
                                         <tbody>
-                                            {data.users.filter(u => isSuperAdmin || u.role !== 'SuperAdmin').map(u => (
+                                            {data.users.filter(u => isSuperAdmin || (u.role && u.role.toLowerCase() !== 'superadmin' && u.role.toLowerCase() !== 'super_admin')).map(u => (
                                                 <tr key={u.id} className={`border-b border-stone-100 hover:bg-stone-50 ${u.status === 'pending' ? 'bg-yellow-50/30' : ''}`}>
                                                     <td className="p-4 text-xs">{new Date(u.created_at).toLocaleDateString('fr-FR')}</td>
                                                     <td className="p-4 font-serif font-semibold text-stone-800 text-base">{u.nom} {u.prenom}</td>
@@ -641,7 +696,7 @@ const Dashboard = () => {
                                                     <td className="p-4">
                                                         <div className="flex flex-col gap-1 items-start">
                                                             <span className={`px-2 py-1 text-[10px] uppercase font-bold border tracking-widest ${u.status === 'approved' ? 'border-green-200 text-green-700 bg-green-50' : u.status === 'rejected' ? 'border-red-200 text-red-700 bg-red-50' : 'border-yellow-300 text-yellow-800 bg-yellow-100'}`}>{u.status}</span>
-                                                            <span className={`px-2 py-1 text-[10px] uppercase font-bold border tracking-widest ${u.role === 'Admin' ? 'border-purple-200 text-purple-700 bg-purple-50' : u.role === 'SuperAdmin' ? 'border-stone-800 text-white bg-stone-900' : 'border-stone-200 text-stone-600 bg-stone-100'}`}>{u.role}</span>
+                                                            <span className={`px-2 py-1 text-[10px] uppercase font-bold border tracking-widest ${(u.role && (u.role.toLowerCase() === 'admin')) ? 'border-purple-200 text-purple-700 bg-purple-50' : (u.role && (u.role.toLowerCase() === 'superadmin' || u.role.toLowerCase() === 'super_admin')) ? 'border-stone-800 text-white bg-stone-900' : 'border-stone-200 text-stone-600 bg-stone-100'}`}>{u.role}</span>
                                                         </div>
                                                     </td>
                                                     <td className="p-4">
@@ -704,7 +759,7 @@ const Dashboard = () => {
                                                             )}
                                                             <div className="flex gap-2 justify-center">
                                                                 <button onClick={() => setSelectedUserDetail(u)} className="p-1.5 text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100" title="Dossier Complet"><Eye size={16} /></button>
-                                                                {(isSuperAdmin || (isAdmin && u.role === 'Membre')) && u.role !== 'SuperAdmin' && (
+                                                                {(isSuperAdmin || (isAdmin && u.role === 'Membre')) && (u.role && u.role.toLowerCase() !== 'superadmin' && u.role.toLowerCase() !== 'super_admin') && (
                                                                     <button onClick={() => deleteUser(u.id)} className="p-1.5 text-red-500 bg-red-50 border border-red-100 hover:bg-red-100" title="Supprimer Définitivement"><Trash2 size={16} /></button>
                                                                 )}
                                                             </div>
@@ -1001,11 +1056,11 @@ const Dashboard = () => {
                                             <div className="space-y-4">
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Vos Aptitudes / Talents particuliers</label>
-                                                    <textarea rows="3" value={profileForm.aptitudes} onChange={e => setProfileForm({ ...profileForm, aptitudes: e.target.value })} className="w-full p-3 border border-stone-200 outline-none focus:border-[#b89047] bg-stone-50 text-sm" placeholder="Art, Musique, Informatique, Traduction..."></textarea>
+                                                    <textarea rows="3" readOnly value={profileForm.aptitudes} className="w-full p-3 border border-stone-200 outline-none bg-stone-100 text-stone-500 text-sm cursor-not-allowed" placeholder="Art, Musique, Informatique, Traduction..."></textarea>
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Pourquoi souhaitez-vous être membre ?</label>
-                                                    <textarea rows="4" value={profileForm.motivation_adhesion} onChange={e => setProfileForm({ ...profileForm, motivation_adhesion: e.target.value })} className="w-full p-3 border border-stone-200 outline-none focus:border-[#b89047] bg-stone-50 text-sm"></textarea>
+                                                    <textarea rows="4" readOnly value={profileForm.motivation_adhesion} className="w-full p-3 border border-stone-200 outline-none bg-stone-100 text-stone-500 text-sm cursor-not-allowed"></textarea>
                                                 </div>
                                             </div>
                                         </div>
@@ -1027,7 +1082,7 @@ const Dashboard = () => {
             {/* MODAL: VIEW REGISTRATIONS & THIRD PARTY ENROLLMENT */}
             {viewingRegistrations && (
                 <div className="fixed inset-0 z-[100] bg-stone-900/60 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
-                    <div className="bg-white max-w-4xl w-full rounded-sm shadow-xl p-8 border border-stone-200 relative my-auto">
+                    <div className="bg-white max-w-4xl w-full rounded-sm shadow-xl p-4 sm:p-8 border border-stone-200 relative my-auto">
                         <button onClick={() => setViewingRegistrations(null)} className="absolute top-6 right-6 text-stone-400 hover:text-stone-800"><XCircle size={24} /></button>
                         <div className="flex justify-between items-center mb-6 border-b border-stone-100 pb-4">
                             <h2 className="text-2xl font-serif text-stone-800">Inscriptions : {viewingRegistrations.title}</h2>
@@ -1062,6 +1117,22 @@ const Dashboard = () => {
                                     </select>
                                 </div>
                             )}
+
+                            {viewingRegistrations && viewingRegistrations.sites && viewingRegistrations.sites.length > 0 && (
+                                <div className="mt-4">
+                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-2">SÉLECTIONNER LE SITE DE PARTICIPATION *</label>
+                                    <select 
+                                        value={thirdPartyForm.selected_site} 
+                                        onChange={e => setThirdPartyForm({ ...thirdPartyForm, selected_site: e.target.value })} 
+                                        className="w-full p-2 text-xs border border-stone-200 bg-white"
+                                        required
+                                    >
+                                        <option value="">-- Choisir un site --</option>
+                                        {viewingRegistrations.sites.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                            )}
+
                             <div className="mt-4 flex flex-col md:flex-row gap-4 items-start md:items-center">
                                 <div className="flex gap-3 items-center">
                                     <span className="text-xs font-bold text-stone-500">PAIEMENT :</span>
@@ -1079,7 +1150,7 @@ const Dashboard = () => {
                                 <tbody>
                                     {data.registrations.filter(r => r.activity_id === viewingRegistrations.id).map(r => (
                                         <tr key={r.id} className="border-b border-stone-50 hover:bg-stone-50 transition-colors">
-                                            <td className="p-3 font-semibold text-stone-800">
+                                            <td className="p-3 font-semibold text-stone-800 break-words max-w-[120px]">
                                                 {r.guest_info ? `${r.guest_info.nom} ${r.guest_info.prenom}` : r.child_info ? `${r.child_info.nom} ${r.child_info.prenom}` : `${r.nom} ${r.prenom}`}
                                             </td>
                                             <td className="p-3">
@@ -1166,11 +1237,11 @@ const Dashboard = () => {
                 </div>
             )}
 
-            {/* MODAL: FULL MEMBER DOSSIER */}
+            {/* MODAL: Dossier Membre */}
             {selectedUserDetail && (
                 <div className="fixed inset-0 z-[100] bg-stone-900/60 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
-                    <div className="bg-white max-w-3xl w-full rounded-sm shadow-xl p-8 border border-stone-200 relative my-auto">
-                        <button onClick={() => setSelectedUserDetail(null)} className="absolute top-6 right-6 text-stone-400 hover:text-stone-800"><XCircle size={24} /></button>
+                    <div className="bg-white max-w-3xl w-full rounded-sm shadow-xl p-4 sm:p-8 border border-stone-200 relative my-auto">
+                        <button onClick={() => setSelectedUserDetail(null)} className="absolute top-4 right-4 sm:top-6 sm:right-6 text-stone-400 hover:text-stone-800"><XCircle size={24} /></button>
                         <h2 className="text-2xl font-serif text-stone-800 mb-6 border-b border-stone-100 pb-2 uppercase tracking-tight">Dossier Membre : {selectedUserDetail.nom} {selectedUserDetail.prenom}</h2>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm overflow-y-auto max-h-[70vh] pr-2 custom-scrollbar">
@@ -1212,6 +1283,22 @@ const Dashboard = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* INTEGRATED HARMONIZED REGISTRATION FORM */}
+            {selectedEvent && (
+                <ApplicationForm 
+                    event={selectedEvent} 
+                    onClose={() => setSelectedEvent(null)} 
+                    onSubmit={async (payload) => {
+                        try {
+                            await axios.post('/api/register-activity', payload, { headers });
+                            setSelectedEvent(null);
+                            alert("Opération effectuée avec succès !");
+                            fetchData();
+                        } catch (err) { alert(err.response?.data?.message || 'Erreur lors de l\'opération'); }
+                    }} 
+                />
             )}
         </div>
     );
