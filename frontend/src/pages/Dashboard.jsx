@@ -30,7 +30,8 @@ const Dashboard = () => {
         price_fcfa: 0, max_participants: '', is_public: true,
         sites: [], program: []
     });
-    const [programItem, setProgramItem] = useState({ title: '', hour_start: '', hour_end: '' });
+    const [programItem, setProgramItem] = useState({ title: '', hour_start: '', hour_end: '', day_date: '' });
+
     const [selectedUserDetail, setSelectedUserDetail] = useState(null);
     const [viewingRegistrations, setViewingRegistrations] = useState(null); // activity object for guests/export
     const [thirdPartyForm, setThirdPartyForm] = useState({ type: 'guest', guest: { nom: '', prenom: '', email: '', localisation: '', whatsapp: '', telephone: '' }, child: { nom: '', prenom: '', grade: 'Jeunesse A entre 6 et 9 ans' }, payment_method: 'physical' });
@@ -45,7 +46,8 @@ const Dashboard = () => {
     const ALL_SITES = ["Foyer Sole Novo à Djèrègbé", "Centre de ville de Cotonou", "Centre de ville de Lokossa", "Centre de ville de Natitingou", "Centre de ville de Porto-Novo", "Activité en ligne"];
     const ACTIVITY_TYPES = ["Conférence de Renouvellement", "Conférence JR", "Conférence de Noël", "Conférence de l'Ecole Intérieure", "Conférence de l'Ecole Extérieure", "Activité Publique", "Conférence de Jeunesse"];
 
-    const GRADES = ['Nouveau membre', 'Jeunesse A entre 6 et 9 ans', 'Jeunesse B entre 9 et 12 ans', 'Jeunesse C entre 12 et 15 ans', 'Jeunesse D entre 15 et 18 ans', 'JR entre 18 et 30 ans', '1er aspect', '2ème aspect', '3ème aspect', '4ème aspect', '5ème aspect', '6ème aspect', '7ème aspect'];
+    const GRADES = ['Nouveau membre', 'Jeunesse A entre 6 et 9 ans', 'Jeunesse B entre 9 et 12 ans', 'Jeunesse C entre 12 et 15 ans', 'Jeunesse D entre 15 et 18 ans', 'JR entre 18 et 30 ans', '1er aspect', '2ème aspect', '3ème aspect', '4ème aspect', '5ème aspect', '6ème aspect', '7ème aspect', '2ème Aspect', 'Graal', 'ECCLESIA 2014', 'ECCLESIA 2021', 'ECCLESIA 2025', 'ECS'];
+
 
     const fetchData = async () => {
         try {
@@ -143,13 +145,14 @@ const Dashboard = () => {
         } catch (err) { console.error(err); }
     };
 
-    const updateUserRoleGrade = async (id, role, grade) => {
+    const updateUserAdminFields = async (id, fields) => {
         try {
-            await axios.put(`/api/admin/users/${id}/role-grade`, { role, grade }, { headers });
+            await axios.put(`/api/admin/users/${id}/role-grade`, fields, { headers });
             fetchData();
-            alert("Profil du membre mis à jour.");
+            alert("Informations du membre mises à jour.");
         } catch (err) { alert(err.response?.data?.message || "Erreur de modification"); }
     };
+
 
     const deleteUser = async (id) => {
         if (!window.confirm("Supprimer DÉFINITIVEMENT ce membre et son adhésion ?")) return;
@@ -160,10 +163,14 @@ const Dashboard = () => {
     };
 
     const addProgramItem = () => {
-        if (!programItem.title || !programItem.hour_start) return;
+        if (!programItem.title || !programItem.hour_start || !programItem.day_date) { 
+            alert("Veuillez remplir le titre, l'heure et la date d'activité.");
+            return; 
+        }
         setActivityForm({ ...activityForm, program: [...(activityForm.program || []), programItem] });
-        setProgramItem({ title: '', hour_start: '', hour_end: '' });
+        setProgramItem({ title: '', hour_start: '', hour_end: '', day_date: '' });
     };
+
 
     const deleteProgramItem = (idx) => {
         const newProg = [...activityForm.program];
@@ -194,10 +201,11 @@ const Dashboard = () => {
         try {
             await axios.post('/api/users', userForm, { headers });
             alert("Compte créé avec succès !");
-            setUserForm({ nom: '', prenom: '', email: '', role: 'Membre', password: '' });
+            setUserForm({ nom: '', prenom: '', email: '', role: 'Membre', password: '', matricule: '', sexe: 'Masculin', centre: ALL_SITES[0] });
             fetchData();
         } catch (err) { alert(err.response?.data?.message || "Erreur création compte"); }
     };
+
 
     const exportPDF = () => {
         const doc = new jsPDF();
@@ -317,7 +325,9 @@ const Dashboard = () => {
                 <div className="flex items-center gap-2">
                     <img src="/logo.png" alt="Lectorium" className="h-8" />
                     <span className="font-serif text-[#b89047] font-bold">Lectorium</span>
+                    <span className="ml-2 text-[10px] bg-stone-100 px-2 py-0.5 rounded text-stone-500 uppercase font-bold tracking-tighter">{user.grade}</span>
                 </div>
+
                 <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-stone-600">
                     {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
                 </button>
@@ -589,17 +599,18 @@ const Dashboard = () => {
                         {/* ADMIN: USERS (ADHÉSIONS) */}
                         {tab === 'users' && isAdmin && (
                             <div>
-                                <div className="flex justify-between items-center mb-6 border-b border-stone-100 pb-4">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-stone-100 pb-4 gap-4">
                                     <h1 className="text-3xl font-serif text-stone-800">Membres et Demandes</h1>
                                 </div>
-
+                                
                                 <form onSubmit={createUser} className="bg-stone-50 border border-stone-200 p-4 mb-8">
                                     <h3 className="text-sm font-bold text-[#b89047] uppercase tracking-widest mb-4 flex items-center gap-2"><Plus size={16} /> Créer un compte direct</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                                         <input type="text" placeholder="Nom" required value={userForm.nom} onChange={e => setUserForm({ ...userForm, nom: e.target.value })} className="p-2 text-sm border border-stone-200 outline-none focus:border-[#b89047]" />
                                         <input type="text" placeholder="Prénom" required value={userForm.prenom} onChange={e => setUserForm({ ...userForm, prenom: e.target.value })} className="p-2 text-sm border border-stone-200 outline-none focus:border-[#b89047]" />
                                         <input type="email" placeholder="Email" required value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} className="p-2 text-sm border border-stone-200 outline-none focus:border-[#b89047]" />
-
+                                        <input type="text" placeholder="N° Matricule" required value={userForm.matricule} onChange={e => setUserForm({ ...userForm, matricule: e.target.value })} className="p-2 text-sm border border-stone-200 outline-none focus:border-[#b89047] font-mono" />
+                                        
                                         <div className="relative">
                                             <input type={showUserPwd ? "text" : "password"} placeholder="Mot de passe" required value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} className="w-full p-2 text-sm border border-stone-200 outline-none focus:border-[#b89047] pr-8" />
                                             <button type="button" onClick={() => setShowUserPwd(!showUserPwd)} className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400">
@@ -609,10 +620,12 @@ const Dashboard = () => {
                                         <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })} className="p-2 text-sm font-bold border border-stone-200 outline-none focus:border-[#b89047]">
                                             <option value="Membre">Membre</option>
                                             <option value="Admin">Admin</option>
+                                            <option value="SuperAdmin">SuperAdmin</option>
                                         </select>
                                     </div>
                                     <button type="submit" className="mt-4 bg-[#b89047] text-white px-4 py-2 text-xs font-bold uppercase tracking-widest hover:bg-[#a37b3b]">Créer l'utilisateur</button>
                                 </form>
+
 
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left text-sm text-stone-600">
@@ -632,31 +645,55 @@ const Dashboard = () => {
                                                         </div>
                                                     </td>
                                                     <td className="p-4">
-                                                        {/* Selector for Grade & Role */}
-                                                        {isSuperAdmin && (
+                                                        {/* Selector for Grade & Role & Sensitive Info */}
+                                                        {isAdmin && (
                                                             <div className="flex flex-col gap-2">
-                                                                <select 
-                                                                    value={u.grade || 'Nouveau membre'} 
-                                                                    onChange={(e) => updateUserRoleGrade(u.id, u.role, e.target.value)}
-                                                                    className="text-xs p-1 border border-stone-200 bg-white"
-                                                                >
-                                                                    {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-                                                                </select>
-                                                                <select
-                                                                    value={u.role}
-                                                                    onChange={(e) => updateUserRoleGrade(u.id, e.target.value, u.grade)}
-                                                                    className="text-xs p-1 border border-stone-200 bg-white font-bold"
-                                                                >
-                                                                    <option value="Membre">M. Standard</option>
-                                                                    <option value="Admin">Administrateur</option>
-                                                                    <option value="SuperAdmin">Super Admin</option>
-                                                                </select>
+                                                                <div className="flex gap-1">
+                                                                    <select 
+                                                                        value={u.grade || 'Nouveau membre'} 
+                                                                        onChange={(e) => updateUserAdminFields(u.id, { grade: e.target.value })}
+                                                                        className="text-[10px] p-1 border border-stone-200 bg-white flex-1"
+                                                                    >
+                                                                        {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                                                                    </select>
+                                                                    <select
+                                                                        value={u.role}
+                                                                        onChange={(e) => updateUserAdminFields(u.id, { role: e.target.value })}
+                                                                        className="text-[10px] p-1 border border-stone-200 bg-white font-bold"
+                                                                        disabled={!isSuperAdmin && u.role === 'Admin'}
+                                                                    >
+                                                                        <option value="Membre">Memb.</option>
+                                                                        <option value="Admin">Admin</option>
+                                                                        {isSuperAdmin && <option value="SuperAdmin">SAdmin</option>}
+                                                                    </select>
+                                                                </div>
+                                                                <div className="flex gap-1 mt-1">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="Matricule" 
+                                                                        defaultValue={u.matricule}
+                                                                        onBlur={(e) => { if(e.target.value !== u.matricule) updateUserAdminFields(u.id, { matricule: e.target.value }) }}
+                                                                        className="text-[10px] p-1 border border-stone-200 bg-white flex-1 font-mono"
+                                                                    />
+                                                                    <select 
+                                                                        value={u.centre} 
+                                                                        onChange={(e) => updateUserAdminFields(u.id, { centre: e.target.value })}
+                                                                        className="text-[10px] p-1 border border-stone-200 bg-white flex-1"
+                                                                    >
+                                                                        <option value="">Centre</option>
+                                                                        {ALL_SITES.map(s => <option key={s} value={s}>{s}</option>)}
+                                                                    </select>
+                                                                </div>
                                                             </div>
                                                         )}
-                                                        {!isSuperAdmin && (
-                                                            <span className="text-xs italic text-stone-400">Modification par SuperAdmin uniquement</span>
+                                                        {!isAdmin && (
+                                                            <div className="flex flex-col text-[10px] gap-1">
+                                                                <span className="font-bold text-[#b89047]">{u.grade}</span>
+                                                                <span className="text-stone-400">{u.centre || 'Aucun centre'}</span>
+                                                            </div>
                                                         )}
                                                     </td>
+
                                                     <td className="p-4 flex gap-2 flex-wrap justify-center">
                                                         <div className="flex flex-col gap-2 w-full">
                                                             {u.status === 'pending' && (
@@ -773,22 +810,45 @@ const Dashboard = () => {
 
                                         {/* PROGRAM BUILDER */}
                                         <div className="md:col-span-2 border-t border-stone-200 pt-6 mt-4">
-                                            <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-3">Programme détaillé de l'activité</label>
+                                            <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-3">Programme détaillé de l'activité (Par jour)</label>
                                             <div className="bg-white p-4 border border-stone-200 mb-4 grid grid-cols-1 md:grid-cols-4 gap-3">
-                                                <input type="text" placeholder="Désignation (ex: Introduction)" value={programItem.title} onChange={e => setProgramItem({ ...programItem, title: e.target.value })} className="p-2 text-xs border border-stone-200 md:col-span-2" />
+                                                <input type="date" value={programItem.day_date} onChange={e => setProgramItem({ ...programItem, day_date: e.target.value })} className="p-2 text-xs border border-stone-200" />
+                                                <input type="text" placeholder="Désignation (ex: Introduction)" value={programItem.title} onChange={e => setProgramItem({ ...programItem, title: e.target.value })} className="p-2 text-xs border border-stone-200" />
                                                 <input type="time" value={programItem.hour_start} onChange={e => setProgramItem({ ...programItem, hour_start: e.target.value })} className="p-2 text-xs border border-stone-200" />
                                                 <input type="time" value={programItem.hour_end} onChange={e => setProgramItem({ ...programItem, hour_end: e.target.value })} className="p-2 text-xs border border-stone-200" />
-                                                <button type="button" onClick={addProgramItem} className="md:col-span-4 bg-stone-100 text-stone-600 py-1 text-[10px] font-bold tracking-widest hover:bg-stone-200 border border-stone-200">Ajouter au programme</button>
+                                                <button type="button" onClick={addProgramItem} className="md:col-span-4 bg-stone-100 text-stone-600 py-1 text-[10px] font-bold tracking-widest hover:bg-stone-200 border border-stone-200">Ajouter cet élément de programme</button>
                                             </div>
-                                            <div className="space-y-2">
-                                                {(activityForm.program || []).map((item, idx) => (
-                                                    <div key={idx} className="flex justify-between items-center bg-stone-50 p-2 text-xs border border-stone-100">
-                                                        <span><strong>{item.hour_start} - {item.hour_end}</strong> : {item.title}</span>
-                                                        <button type="button" onClick={() => deleteProgramItem(idx)} className="text-red-500"><Trash2 size={12} /></button>
+                                            <div className="space-y-4">
+                                                {/* Group and display program by day */}
+                                                {Object.entries((activityForm.program || []).reduce((acc, item) => {
+                                                    const day = item.day_date || 'Non défini';
+                                                    if (!acc[day]) acc[day] = [];
+                                                    acc[day].push(item);
+                                                    return acc;
+                                                }, {})).sort(([d1], [d2]) => d1.localeCompare(d2)).map(([day, items], dIdx) => (
+                                                    <div key={dIdx} className="border border-stone-100 rounded-sm overflow-hidden">
+                                                        <div className="bg-stone-100 px-3 py-1.5 text-[10px] font-bold uppercase text-stone-500 tracking-wider">Jour : {day !== 'Non défini' ? new Date(day).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : day}</div>
+                                                        <div className="divide-y divide-stone-50">
+                                                            {items.map((item, iIdx) => (
+                                                                <div key={iIdx} className="flex justify-between items-center bg-white p-3 text-xs">
+                                                                    <span className="flex gap-3">
+                                                                        <strong className="text-[#b89047] w-24">{item.hour_start}{item.hour_end ? ` - ${item.hour_end}` : ''}</strong>
+                                                                        <span>{item.title}</span>
+                                                                    </span>
+                                                                    <button type="button" onClick={() => {
+                                                                        const newProg = [...activityForm.program];
+                                                                        const originalIdx = newProg.indexOf(item);
+                                                                        newProg.splice(originalIdx, 1);
+                                                                        setActivityForm({ ...activityForm, program: newProg });
+                                                                    }} className="text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
+
 
                                     </div>
 
@@ -831,10 +891,16 @@ const Dashboard = () => {
                                         <div className="md:col-span-3">
                                             <h3 className="text-xs font-bold text-[#b89047] uppercase tracking-[0.2em] mb-4 border-b border-stone-100 pb-2">Identifiants & Connexion</h3>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-stone-50 p-6 border border-stone-200">
-                                                <div className="md:col-span-2">
+                                                <div className="md:col-span-1">
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Numéro Matricule</label>
-                                                    <input type="text" value={profileForm.matricule} onChange={e => setProfileForm({ ...profileForm, matricule: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] bg-white font-mono uppercase text-stone-400" readOnly placeholder="Non assigné" />
+                                                    <input type="text" value={profileForm.matricule} className="w-full p-2 border border-stone-200 outline-none bg-stone-100 font-mono uppercase text-[#b89047] font-bold" readOnly placeholder="Non assigné" />
+                                                    <p className="text-[9px] text-stone-400 mt-1 italic">Assigné par l'administration.</p>
                                                 </div>
+                                                <div className="md:col-span-1">
+                                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Grade Actuel</label>
+                                                    <input type="text" value={user.grade} className="w-full p-2 border border-stone-200 outline-none bg-stone-100 uppercase text-[#b89047] font-bold" readOnly />
+                                                </div>
+
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Email (Identifiant)</label>
                                                     <input type="email" value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] bg-white" />
@@ -913,11 +979,20 @@ const Dashboard = () => {
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Centre / Ville LR</label>
-                                                    <select value={profileForm.centre} onChange={e => setProfileForm({ ...profileForm, centre: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] bg-white">
+                                                    <select 
+                                                        value={profileForm.centre} 
+                                                        onChange={e => {
+                                                            if (isAdmin) setProfileForm({ ...profileForm, centre: e.target.value });
+                                                        }} 
+                                                        disabled={!isAdmin}
+                                                        className={`w-full p-2 border border-stone-200 outline-none bg-white ${!isAdmin ? 'bg-stone-100 cursor-not-allowed text-stone-500' : 'focus:border-[#b89047]'}`}
+                                                    >
                                                         <option value="">Sélectionner votre centre</option>
                                                         {ALL_SITES.map(s => <option key={s} value={s}>{s}</option>)}
                                                     </select>
+                                                    {!isAdmin && <p className="text-[9px] text-stone-400 mt-1 italic">Affecté par l'administration.</p>}
                                                 </div>
+
                                             </div>
                                         </div>
 
@@ -1040,16 +1115,29 @@ const Dashboard = () => {
                         
                         <div className="space-y-6">
                             <div>
-                                <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4">Programme de l'activité</h3>
-                                <div className="space-y-3">
+                                <div className="space-y-6">
                                     {viewingProgram.program && viewingProgram.program.length > 0 ? (
-                                        viewingProgram.program.map((item, idx) => (
-                                            <div key={idx} className="flex gap-4 p-4 bg-stone-50 border-l-2 border-[#b89047]">
-                                                <div className="font-mono text-[#b89047] font-bold whitespace-nowrap pt-0.5">
-                                                    {item.hour_start} {item.hour_end ? `- ${item.hour_end}` : ''}
-                                                </div>
-                                                <div className="text-stone-700 font-serif">
-                                                    {item.title}
+                                        Object.entries(viewingProgram.program.reduce((acc, item) => {
+                                            const day = item.day_date || 'Néant';
+                                            if (!acc[day]) acc[day] = [];
+                                            acc[day].push(item);
+                                            return acc;
+                                        }, {})).sort(([d1], [d2]) => d1.localeCompare(d2)).map(([day, items], dIdx) => (
+                                            <div key={dIdx} className="space-y-3">
+                                                <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.3em] border-b border-stone-100 pb-1 flex items-center gap-2">
+                                                    <Calendar size={12} className="text-[#b89047]" /> {day !== 'Néant' ? new Date(day).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : day}
+                                                </h4>
+                                                <div className="space-y-2">
+                                                    {items.map((item, iIdx) => (
+                                                        <div key={iIdx} className="flex gap-4 p-3 bg-stone-50 border-l-2 border-[#b89047] hover:bg-stone-100 transition-colors">
+                                                            <div className="font-mono text-[10px] text-[#b89047] font-bold whitespace-nowrap pt-1 w-24">
+                                                                {item.hour_start} {item.hour_end ? `- ${item.hour_end}` : ''}
+                                                            </div>
+                                                            <div className="text-stone-700 font-serif text-sm">
+                                                                {item.title}
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
                                         ))
@@ -1057,6 +1145,7 @@ const Dashboard = () => {
                                         <p className="text-stone-400 text-sm italic">Aucun programme détaillé pour le moment.</p>
                                     )}
                                 </div>
+
                             </div>
 
                             <div className="pt-6 border-t border-stone-100 flex justify-between items-center text-xs text-stone-500">
