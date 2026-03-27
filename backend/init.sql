@@ -76,6 +76,8 @@ CREATE TABLE IF NOT EXISTS news (
   category VARCHAR(100),
   author VARCHAR(255),
   image_url VARCHAR(255),
+  file_url VARCHAR(255),
+  visibility VARCHAR(50) DEFAULT 'public', -- 'public', 'members', 'admins'
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
