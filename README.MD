@@ -38,14 +38,18 @@ Assurer sécurité et conformité RGPD.
 - Admins : accès complet selon rôle, avec gestion sécurisée des permissions.
 - Export des listes d’inscriptions (CSV/Excel) avec informations : matricule, nom, prénom, niveau/grade, statut paiement.
 
+
 📋 Fonctionnalités principales
+
 Pour le public :
 - Accès aux actualités, travaux et podcasts
 - Liste des activités publiques
+
 Pour les membres :
 - Inscription et connexion sécurisée
 - Tableau de bord : activités inscrites, historique de paiement
 - Paiement en ligne via services locaux
+
 Pour les administrateurs :
 - Création, modification et clôture des activités
 - Gestion des inscriptions et suivi des paiements
@@ -59,8 +63,8 @@ Pour les administrateurs :
 
 🌐 Déploiement
 - Frontend : Vercel (préprod & prod)
-- Backend : Serveur Node Js(Express) & PostgreSQL
-- Base de données PostgreSQL managée
+- Backend : Render Node Js(Express) & PostgreSQL
+- Base de données PostgreSQL managée (Neon)
 
 🛠️ Branchement Git
 - frontend : React js & TailwindCSS
