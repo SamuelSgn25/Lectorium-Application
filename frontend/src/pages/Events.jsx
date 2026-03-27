@@ -25,12 +25,12 @@ const Events = () => {
         }
     };
 
-    const handleApply = async (formData) => {
+    const handleApply = async (payload) => {
         try {
             const token = localStorage.getItem('token');
-            await axios.post('/api/register-activity', {
-                activity_id: selectedEvent.id, ...formData
-            }, { headers: { Authorization: `Bearer ${token}` } });
+            await axios.post('/api/register-activity', payload, { 
+                headers: { Authorization: `Bearer ${token}` } 
+            });
 
             setSuccessMsg("Votre inscription a été envoyée avec succès !");
             setSelectedEvent(null);
@@ -103,8 +103,8 @@ const Events = () => {
                                 <div className="flex items-start gap-2">
                                     <Calendar size={16} className="text-[#b89047] mt-0.5 shrink-0" />
                                     <div>
-                                        <div>Du : {new Date(act.date_start).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
-                                        <div>Au : {new Date(act.date_end).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                                        <div>Du : {new Date(act.date_start).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })}</div>
+                                        <div>Au : {new Date(act.date_end).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })}</div>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-2">
@@ -120,21 +120,42 @@ const Events = () => {
                                 </div>
                             </div>
 
-                            {act.is_public ? (
-                                <div className="w-full py-2 bg-stone-50 border border-stone-200 text-stone-500 text-center text-sm font-semibold uppercase tracking-wider mt-auto cursor-default">
-                                    Entrée libre, sans inscription
+                            <div className="mt-auto pt-6 border-t border-stone-100 flex flex-col gap-4">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-[#b89047] font-semibold">{act.price_fcfa > 0 ? `${act.price_fcfa} FCFA` : 'Entrée Libre'}</span>
+                                    <span className={`px-2 py-1 text-[10px] uppercase font-bold border tracking-widest ${act.is_public ? 'border-green-200 text-green-700 bg-green-50' : 'border-blue-200 text-blue-700 bg-blue-50'}`}>
+                                        {act.is_public ? 'Public/Libre' : 'Membres. ext.'}
+                                    </span>
                                 </div>
-                            ) : (
-                                <button
-                                    onClick={() => {
-                                        if (!user) { alert("Veuillez vous connecter pour postuler."); return; }
-                                        setSelectedEvent(act);
-                                    }}
-                                    className="w-full py-2 bg-stone-100 text-stone-700 hover:bg-[#b89047] hover:text-white transition-colors text-sm font-semibold uppercase tracking-wider mt-auto"
-                                >
-                                    S'inscrire
-                                </button>
-                            )}
+
+                                {!user ? (
+                                    <button
+                                        onClick={() => window.location.href = '/login'}
+                                        className="w-full py-3 bg-stone-100 text-stone-700 hover:bg-[#b89047] hover:text-white transition-colors text-[10px] font-bold uppercase tracking-wider !mt-0"
+                                    >
+                                        Se connecter pour s'inscrire
+                                    </button>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            onClick={() => setSelectedEvent(act)}
+                                            className="py-3 text-[10px] font-bold uppercase tracking-widest bg-stone-800 border-stone-800 text-white hover:bg-stone-700 transition-colors"
+                                        >
+                                            M'inscrire
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                // If we want total harmony, we could redirect to Dashboard with a specific tab, 
+                                                // but for now, let's just use the form.
+                                                setSelectedEvent(act);
+                                            }}
+                                            className="py-3 text-[10px] text-[#b89047] border border-[#b89047] hover:bg-[#b89047] hover:text-white uppercase font-bold tracking-widest transition-colors"
+                                        >
+                                            Inscrire tiers
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     ))
                 )}
