@@ -6,6 +6,7 @@ export const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -19,12 +20,14 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (email, password) => {
         try {
+            setError(null);
             const res = await axios.post('/api/login', { email, password });
             localStorage.setItem('token', res.data.token);
             localStorage.setItem('user', JSON.stringify(res.data.user));
             setUser(res.data.user);
             return res.data;
         } catch (err) {
+            setError(err.response?.data?.message || "Une erreur s'est produite.");
             throw err;
         }
     };
@@ -36,7 +39,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, setUser, loading, login, logout }}>
+        <AuthContext.Provider value={{ user, setUser, loading, error, login, logout }}>
             {children}
         </AuthContext.Provider>
     );
