@@ -940,6 +940,19 @@ const Dashboard = () => {
                             <div className="max-w-4xl mx-auto">
                                 <h1 className="text-3xl font-serif text-stone-800 mb-6 border-b border-stone-100 pb-4">Mon Profil & État Civil</h1>
 
+                                {!isAdmin && (
+                                    <div className="mb-8 p-6 bg-[#b89047]/5 border border-[#b89047]/20 flex items-start gap-4">
+                                        <div className="bg-[#b89047] text-white p-2 rounded-full"><ShieldCheck size={20} /></div>
+                                        <div>
+                                            <h4 className="text-sm font-bold text-stone-800 uppercase tracking-widest mb-1">Profil en lecture seule</h4>
+                                            <p className="text-xs text-stone-600 leading-relaxed italic">
+                                                Cher élève, conformément aux nouvelles règles de la plateforme, vos informations de profil ne peuvent plus être modifiées directement par vous-même. 
+                                                <br />Pour toute mise à jour (changement d'adresse, de téléphone ou de grade), veuillez vous adresser au secrétariat de votre centre ou envoyer un message à l'administration.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <form onSubmit={updateProfile} className="space-y-10">
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
 
@@ -948,22 +961,26 @@ const Dashboard = () => {
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-stone-50 p-6 border border-stone-200">
                                                 <div className="md:col-span-1">
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Numéro Matricule</label>
-                                                    <input type="text" value={profileForm.matricule} className="w-full p-2 border border-stone-200 outline-none bg-stone-100 font-mono uppercase text-[#b89047] font-bold" readOnly placeholder="Non assigné" />
-                                                    <p className="text-[9px] text-stone-400 mt-1 italic">Assigné par l'administration.</p>
+                                                    <div className="w-full p-3 border border-[#b89047]/30 bg-white font-mono uppercase text-[#b89047] font-bold text-xl tracking-widest">
+                                                        {profileForm.matricule || 'Non assigné'}
+                                                    </div>
+                                                    <p className="text-[9px] text-stone-400 mt-1 italic">Votre identifiant unique de connexion.</p>
                                                 </div>
                                                 <div className="md:col-span-1">
-                                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Grade Actuel</label>
-                                                    <input type="text" value={user.grade} className="w-full p-2 border border-stone-200 outline-none bg-stone-100 uppercase text-[#b89047] font-bold" readOnly />
+                                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Grade / Aspect Actuel</label>
+                                                    <input type="text" value={user.grade} className="w-full p-2 border border-stone-200 outline-none bg-stone-100 uppercase text-stone-700 font-bold" readOnly />
                                                 </div>
 
                                                 <div>
-                                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Email (Identifiant)</label>
-                                                    <input type="email" value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] bg-white" />
+                                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Email (Identifiant Admin)</label>
+                                                    <input type="email" value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })} disabled={!isAdmin} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] bg-white disabled:bg-stone-50" />
                                                 </div>
-                                                <div>
-                                                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Nouveau mot de passe</label>
-                                                    <input type="password" placeholder="Laisser vide pour ne pas changer" value={profileForm.password} onChange={e => setProfileForm({ ...profileForm, password: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] bg-white" />
-                                                </div>
+                                                {isAdmin && (
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Nouveau mot de passe</label>
+                                                        <input type="password" placeholder="Laisser vide pour ne pas changer" value={profileForm.password} onChange={e => setProfileForm({ ...profileForm, password: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] bg-white" />
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
@@ -972,31 +989,31 @@ const Dashboard = () => {
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Nom</label>
-                                                    <input type="text" value={profileForm.nom} onChange={e => setProfileForm({ ...profileForm, nom: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047]" />
+                                                    <input type="text" value={profileForm.nom} onChange={e => setProfileForm({ ...profileForm, nom: e.target.value })} disabled={!isAdmin} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] disabled:bg-stone-50" />
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Nom de jeune fille</label>
-                                                    <input type="text" value={profileForm.nom_jeune_fille} onChange={e => setProfileForm({ ...profileForm, nom_jeune_fille: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047]" />
+                                                    <input type="text" value={profileForm.nom_jeune_fille} onChange={e => setProfileForm({ ...profileForm, nom_jeune_fille: e.target.value })} disabled={!isAdmin} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] disabled:bg-stone-50" />
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Prénom</label>
-                                                    <input type="text" value={profileForm.prenom} onChange={e => setProfileForm({ ...profileForm, prenom: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047]" />
+                                                    <input type="text" value={profileForm.prenom} onChange={e => setProfileForm({ ...profileForm, prenom: e.target.value })} disabled={!isAdmin} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] disabled:bg-stone-50" />
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Date de naissance</label>
-                                                    <input type="date" value={profileForm.date_naissance} onChange={e => setProfileForm({ ...profileForm, date_naissance: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047]" />
+                                                    <input type="date" value={profileForm.date_naissance} onChange={e => setProfileForm({ ...profileForm, date_naissance: e.target.value })} disabled={!isAdmin} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] disabled:bg-stone-50" />
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Lieu de naissance</label>
-                                                    <input type="text" value={profileForm.lieu_naissance} onChange={e => setProfileForm({ ...profileForm, lieu_naissance: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047]" />
+                                                    <input type="text" value={profileForm.lieu_naissance} onChange={e => setProfileForm({ ...profileForm, lieu_naissance: e.target.value })} disabled={!isAdmin} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] disabled:bg-stone-50" />
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Nationalité</label>
-                                                    <input type="text" value={profileForm.nationalite} onChange={e => setProfileForm({ ...profileForm, nationalite: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047]" />
+                                                    <input type="text" value={profileForm.nationalite} onChange={e => setProfileForm({ ...profileForm, nationalite: e.target.value })} disabled={!isAdmin} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] disabled:bg-stone-50" />
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Sexe</label>
-                                                    <select value={profileForm.sexe} onChange={e => setProfileForm({ ...profileForm, sexe: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] bg-white">
+                                                    <select value={profileForm.sexe} onChange={e => setProfileForm({ ...profileForm, sexe: e.target.value })} disabled={!isAdmin} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] bg-white disabled:bg-stone-50">
                                                         <option value="">Sélectionner</option>
                                                         <option value="Masculin">Masculin</option>
                                                         <option value="Féminin">Féminin</option>
@@ -1004,11 +1021,11 @@ const Dashboard = () => {
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">État Civil</label>
-                                                    <input type="text" value={profileForm.etat_civil} onChange={e => setProfileForm({ ...profileForm, etat_civil: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047]" placeholder="Célibataire, Marié..." />
+                                                    <input type="text" value={profileForm.etat_civil} onChange={e => setProfileForm({ ...profileForm, etat_civil: e.target.value })} disabled={!isAdmin} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] disabled:bg-stone-50" placeholder="Célibataire, Marié..." />
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Nombre d'enfants</label>
-                                                    <input type="number" value={profileForm.nombre_enfants} onChange={e => setProfileForm({ ...profileForm, nombre_enfants: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047]" />
+                                                    <input type="number" value={profileForm.nombre_enfants} onChange={e => setProfileForm({ ...profileForm, nombre_enfants: e.target.value })} disabled={!isAdmin} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] disabled:bg-stone-50" />
                                                 </div>
                                             </div>
                                         </div>
@@ -1018,19 +1035,19 @@ const Dashboard = () => {
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Téléphone WhatsApp</label>
-                                                    <input type="text" value={profileForm.telephone_whatsapp} onChange={e => setProfileForm({ ...profileForm, telephone_whatsapp: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047]" />
+                                                    <input type="text" value={profileForm.telephone_whatsapp} onChange={e => setProfileForm({ ...profileForm, telephone_whatsapp: e.target.value })} disabled={!isAdmin} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] disabled:bg-stone-50" />
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Autre Téléphone</label>
-                                                    <input type="text" value={profileForm.telephone_autre} onChange={e => setProfileForm({ ...profileForm, telephone_autre: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047]" />
+                                                    <input type="text" value={profileForm.telephone_autre} onChange={e => setProfileForm({ ...profileForm, telephone_autre: e.target.value })} disabled={!isAdmin} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] disabled:bg-stone-50" />
                                                 </div>
                                                 <div className="md:col-span-2">
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Adresse de résidence</label>
-                                                    <input type="text" value={profileForm.adresse} onChange={e => setProfileForm({ ...profileForm, adresse: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047]" />
+                                                    <input type="text" value={profileForm.adresse} onChange={e => setProfileForm({ ...profileForm, adresse: e.target.value })} disabled={!isAdmin} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] disabled:bg-stone-50" />
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Profession actuelle</label>
-                                                    <input type="text" value={profileForm.profession} onChange={e => setProfileForm({ ...profileForm, profession: e.target.value })} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047]" />
+                                                    <input type="text" value={profileForm.profession} onChange={e => setProfileForm({ ...profileForm, profession: e.target.value })} disabled={!isAdmin} className="w-full p-2 border border-stone-200 outline-none focus:border-[#b89047] disabled:bg-stone-50" />
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Centre / Ville LR</label>
@@ -1068,9 +1085,15 @@ const Dashboard = () => {
                                     </div>
 
                                     <div className="pt-8 border-t border-stone-100">
-                                        <button type="submit" className="w-full bg-[#b89047] hover:bg-[#a37b3b] text-white font-bold tracking-widest uppercase text-sm py-4 transition-all shadow-lg hover:shadow-xl rounded-sm">
-                                            Enregistrer les modifications du profil
-                                        </button>
+                                        {isAdmin ? (
+                                            <button type="submit" className="w-full bg-[#b89047] hover:bg-[#a37b3b] text-white font-bold tracking-widest uppercase text-sm py-4 transition-all shadow-lg hover:shadow-xl rounded-sm">
+                                                Enregistrer les modifications du profil
+                                            </button>
+                                        ) : (
+                                            <div className="text-center p-4 bg-stone-100 text-stone-500 text-xs font-bold uppercase tracking-widest border border-stone-200">
+                                                Mode Consultation - Modifications désactivées
+                                            </div>
+                                        )}
                                     </div>
                                 </form>
                             </div>
