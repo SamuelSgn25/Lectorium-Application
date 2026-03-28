@@ -53,13 +53,25 @@ const notifyAdmins = async (subject, htmlContent, excludeUserId = null) => {
 const JWT_SECRET = process.env.JWT_SECRET;
 
 const auth = (roles = []) => {
-    return (req, res, next) => {
+    return async (req, res, next) => {
         try {
             const token = req.headers.authorization.split(" ")[1];
             const decoded = jwt.verify(token, JWT_SECRET);
             req.user = decoded;
 
-            const userRank = decoded.role ? decoded.role.toLowerCase() : "";
+            let userRank = decoded.role ? decoded.role.toLowerCase() : "";
+
+            // Fallback for legacy tokens without role
+            if (!userRank && decoded.id) {
+                try {
+                    const userDb = await db.query('SELECT role FROM users WHERE id = $1', [decoded.id]);
+                    if (userDb.rows.length > 0) {
+                        userRank = (userDb.rows[0].role || 'Membre').toLowerCase();
+                        req.user.role = userRank; // Inject back
+                    }
+                } catch(e) {}
+            }
+
             const authorizedRoles = roles.map(r => r.toLowerCase());
 
             if (roles.length > 0 && !authorizedRoles.includes(userRank)) {
