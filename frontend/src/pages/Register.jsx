@@ -88,24 +88,7 @@ const Register = () => {
                         <h3 className="text-lg font-serif text-[#b89047] border-b border-stone-100 pb-2 mb-4">Coordonnées</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <input type="text" name="adresse" placeholder="Adresse postale (Quartier, Ville) *" onChange={handleChange} required className="w-full bg-stone-50 border border-stone-200 text-stone-800 rounded-sm py-2 px-3 focus:outline-none focus:border-[#b89047] text-sm col-span-1 md:col-span-2" />
-                            <input type="email" name="email" placeholder="Adresse email *" onChange={handleChange} required className="w-full bg-stone-50 border border-stone-200 text-stone-800 rounded-sm py-2 px-3 focus:outline-none focus:border-[#b89047] text-sm" />
-                            <div className="relative">
-                                <input
-                                    type={showPassword ? "text" : "password"}
-                                    name="password"
-                                    placeholder="Mot de passe (pour connexion future) *"
-                                    onChange={handleChange}
-                                    required
-                                    className="w-full bg-stone-50 border border-stone-200 text-stone-800 rounded-sm py-2 px-3 pr-10 focus:outline-none focus:border-[#b89047] text-sm"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 focus:outline-none"
-                                >
-                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                </button>
-                            </div>
+                            <input type="email" name="email" placeholder="Adresse email *" onChange={handleChange} required className="w-full bg-stone-50 border border-stone-200 text-stone-800 rounded-sm py-2 px-3 focus:outline-none focus:border-[#b89047] text-sm col-span-1 md:col-span-2" />
                             <input type="tel" name="telephone_whatsapp" placeholder="Numéro de téléphone WhatsApp *" onChange={handleChange} required className="w-full bg-stone-50 border border-stone-200 text-stone-800 rounded-sm py-2 px-3 focus:outline-none focus:border-[#b89047] text-sm" />
                             <input type="tel" name="telephone_autre" placeholder="Autre numéro de téléphone" onChange={handleChange} className="w-full bg-stone-50 border border-stone-200 text-stone-800 rounded-sm py-2 px-3 focus:outline-none focus:border-[#b89047] text-sm" />
                         </div>
