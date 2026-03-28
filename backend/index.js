@@ -187,9 +187,14 @@ app.post('/api/login', async (req, res) => {
                 return res.status(400).json({ message: "Matricule incorrect ou non trouvé" });
             }
             user = userQuery.rows[0];
-            // Enforce role check if needed, but here we allow anyone with matricule to log in as member
+            
+            if (user.role === 'Admin' || user.role === 'SuperAdmin') {
+                return res.status(403).json({ message: "Les administrateurs doivent utiliser la connexion Admin avec email et mot de passe." });
+            }
         } else {
             // Admin/SuperAdmin Login
+            if (!email || !password) return res.status(400).json({ message: "Veuillez renseigner votre email et mot de passe." });
+            
             const userQuery = await db.query('SELECT * FROM users WHERE email = $1', [email]);
             if (userQuery.rows.length === 0) {
                 return res.status(400).json({ message: "Identifiants incorrects" });
@@ -197,6 +202,10 @@ app.post('/api/login', async (req, res) => {
 
             user = userQuery.rows[0];
             
+            if (user.role !== 'Admin' && user.role !== 'SuperAdmin') {
+                return res.status(403).json({ message: "Cet accès est strictement réservé aux administrateurs. Utilisez la connexion par Matricule." });
+            }
+
             // Check password only for Non-Member login types (Admins)
             const isMatch = await bcrypt.compare(password, user.password);
             if (!isMatch) {
