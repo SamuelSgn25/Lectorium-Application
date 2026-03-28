@@ -72,9 +72,11 @@ const auth = (roles = []) => {
                 } catch(e) {}
             }
 
-            const authorizedRoles = roles.map(r => r.toLowerCase());
+            // Normalize roles by removing underscores and spaces to ensure robust matching
+            const normalizedUserRank = userRank.replace(/_|\s/g, '');
+            const authorizedRoles = roles.map(r => r.toLowerCase().replace(/_|\s/g, ''));
 
-            if (roles.length > 0 && !authorizedRoles.includes(userRank)) {
+            if (roles.length > 0 && !authorizedRoles.includes(normalizedUserRank)) {
                 return res.status(403).json({ message: "Accès refusé" });
             }
             next();
