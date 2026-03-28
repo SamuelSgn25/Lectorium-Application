@@ -188,7 +188,8 @@ app.post('/api/login', async (req, res) => {
             }
             user = userQuery.rows[0];
             
-            if (user.role === 'Admin' || user.role === 'SuperAdmin') {
+            const r = user.role ? user.role.toLowerCase() : 'membre';
+            if (r === 'admin' || r === 'superadmin' || r === 'super_admin') {
                 return res.status(403).json({ message: "Les administrateurs doivent utiliser la connexion Admin avec email et mot de passe." });
             }
         } else {
@@ -197,19 +198,20 @@ app.post('/api/login', async (req, res) => {
             
             const userQuery = await db.query('SELECT * FROM users WHERE email = $1', [email]);
             if (userQuery.rows.length === 0) {
-                return res.status(400).json({ message: "Identifiants incorrects" });
+                return res.status(404).json({ message: "Aucun administrateur trouvé avec cette adresse email." });
             }
 
             user = userQuery.rows[0];
             
-            if (user.role !== 'Admin' && user.role !== 'SuperAdmin') {
+            const r = user.role ? user.role.toLowerCase() : 'membre';
+            if (r !== 'admin' && r !== 'superadmin' && r !== 'super_admin') {
                 return res.status(403).json({ message: "Cet accès est strictement réservé aux administrateurs. Utilisez la connexion par Matricule." });
             }
 
             // Check password only for Non-Member login types (Admins)
             const isMatch = await bcrypt.compare(password, user.password);
             if (!isMatch) {
-                return res.status(400).json({ message: "Identifiants incorrects" });
+                return res.status(401).json({ message: "Le mot de passe saisi est incorrect. (Assurez-vous qu'il est bien crypté (bcrypt) dans NeonDB)." });
             }
         }
 
