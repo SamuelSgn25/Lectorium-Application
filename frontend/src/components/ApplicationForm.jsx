@@ -1,15 +1,20 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, X, User, Users as UsersIcon, Baby, MapPin } from 'lucide-react';
+import { CheckCircle, X, User, Users as UsersIcon, Baby, MapPin, Smartphone, CreditCard, ShieldCheck } from 'lucide-react';
 
 const ApplicationForm = ({ event, onClose, onSubmit }) => {
-    const [regType, setRegType] = useState('self'); // 'self', 'guest', 'child'
+    const [regType, setRegType] = useState('self'); // 'self', 'other_member', 'child'
     const [paymentMethod, setPaymentMethod] = useState('physical');
     const [selectedSite, setSelectedSite] = useState('');
     const [guestData, setGuestData] = useState({ nom: '', prenom: '', email: '', localisation: '', whatsapp: '' });
-    const [childData, setChildData] = useState({ nom: '', prenom: '', grade: 'Jeunesse A entre 6 et 9 ans' });
+    const [childData, setChildData] = useState({ nom: '', prenom: '', grade: 'Jeunesse A entre 6 et 9 ans', matricule: '' });
+    const [otherMemberMatricule, setOtherMemberMatricule] = useState('');
+    const [foundMember, setFoundMember] = useState(null);
+    const [isSearching, setIsSearching] = useState(false);
     const [cond1, setCond1] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [feexNetwork, setFeexNetwork] = useState('mtn');
+    const [feexPhone, setFeexPhone] = useState('');
 
     const isPayant = event.price_fcfa > 0;
 
@@ -19,6 +24,27 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
             setSelectedSite(event.sites[0]);
         }
     }, [event.sites]);
+
+    const handleSearchMember = async (mat, target = 'other_member') => {
+        if (!mat) return;
+        setIsSearching(true);
+        setError('');
+        try {
+            const res = await fetch(`/api/members/matricule/${mat}`);
+            if (!res.ok) throw new Error("Membre non trouvé");
+            const data = await res.json();
+            if (target === 'other_member') {
+                setFoundMember(data);
+            } else {
+                setChildData({ ...childData, nom: data.nom, prenom: data.prenom, matricule: mat });
+            }
+        } catch (err) {
+            setError("Matricule non trouvé. Veuillez vérifier le numéro.");
+            if (target === 'other_member') setFoundMember(null);
+        } finally {
+            setIsSearching(false);
+        }
+    };
 
     const GRADES = [
         'Jeunesse A entre 6 et 9 ans', 
@@ -42,8 +68,14 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
         if (isPayant && !paymentMethod) { setError("Veuillez sélectionner une méthode de paiement."); return; }
         if (!cond1) { setError("Veuillez accepter les conditions."); return; }
 
-        if (regType === 'guest' && (!guestData.nom || !guestData.prenom)) { setError("Veuillez remplir le nom et le prénom de l'invité."); return; }
+        if (regType === 'other_member' && !foundMember) { setError("Veuillez d'abord rechercher et valider un membre par son matricule."); return; }
         if (regType === 'child' && (!childData.nom || !childData.prenom)) { setError("Veuillez remplir le nom et le prénom de l'enfant."); return; }
+        if (paymentMethod === 'feexpay') {
+            if (!feexPhone || feexPhone.length < 8) {
+                setError("Veuillez entrer un numéro de téléphone valide pour FeexPay.");
+                return;
+            }
+        }
 
         setError('');
         setLoading(true);
@@ -57,8 +89,18 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
             payment_method: paymentMethod
         };
 
-        if (regType === 'guest') payload.guest_info = guestData;
-        if (regType === 'child') payload.child_info = childData;
+        if (paymentMethod === 'feexpay') {
+            payload.feexpay_network = feexNetwork;
+            payload.feexpay_phone = feexPhone;
+        }
+
+        if (regType === 'other_member') {
+            payload.register_by_matricule = otherMemberMatricule;
+        }
+        if (regType === 'child') {
+            payload.child_info = childData;
+            if (childData.matricule) payload.register_by_matricule = childData.matricule;
+        }
 
         await onSubmit(payload);
         setLoading(false);
@@ -117,10 +159,10 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
                             </button>
                             <button 
                                 type="button"
-                                onClick={() => setRegType('guest')}
-                                className={`flex items-center justify-center gap-2 p-3 border text-[10px] font-bold transition-all ${regType === 'guest' ? 'bg-stone-800 text-white border-stone-800 shadow-md' : 'bg-white text-stone-500 border-stone-200 hover:border-stone-400'}`}
+                                onClick={() => setRegType('other_member')}
+                                className={`flex items-center justify-center gap-2 p-3 border text-[10px] font-bold transition-all ${regType === 'other_member' ? 'bg-stone-800 text-white border-stone-800 shadow-md' : 'bg-white text-stone-500 border-stone-200 hover:border-stone-400'}`}
                             >
-                                <UsersIcon size={16} /> UN INVITÉ
+                                <UsersIcon size={16} /> AUTRE MEMBRE
                             </button>
                             <button 
                                 type="button"
@@ -133,23 +175,59 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
                     </div>
 
                     {/* B. Specific Data */}
-                    {regType === 'guest' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-stone-50 p-4 border border-stone-200 rounded-sm">
-                            <input type="text" placeholder="Nom" required value={guestData.nom} onChange={e => setGuestData({...guestData, nom: e.target.value})} className="p-2 text-sm border border-stone-200" />
-                            <input type="text" placeholder="Prénom" required value={guestData.prenom} onChange={e => setGuestData({...guestData, prenom: e.target.value})} className="p-2 text-sm border border-stone-200" />
-                            <input type="email" placeholder="Email" value={guestData.email} onChange={e => setGuestData({...guestData, email: e.target.value})} className="p-2 text-sm border border-stone-200" />
-                            <input type="text" placeholder="WhatsApp" value={guestData.whatsapp} onChange={e => setGuestData({...guestData, whatsapp: e.target.value})} className="p-2 text-sm border border-stone-200" />
-                            <input type="text" placeholder="Localisation" value={guestData.localisation} onChange={e => setGuestData({...guestData, localisation: e.target.value})} className="p-2 text-sm border border-stone-200 sm:col-span-2" />
+                    {regType === 'other_member' && (
+                        <div className="space-y-4 bg-stone-50 p-4 border border-stone-200 rounded-sm">
+                            <div className="flex gap-2">
+                                <input 
+                                    type="text" 
+                                    placeholder="Rechercher par matricule..." 
+                                    value={otherMemberMatricule} 
+                                    onChange={e => setOtherMemberMatricule(e.target.value)} 
+                                    className="flex-1 p-2 text-sm border border-stone-200" 
+                                />
+                                <button 
+                                    type="button" 
+                                    onClick={() => handleSearchMember(otherMemberMatricule)}
+                                    className="bg-stone-800 text-white px-4 text-xs font-bold uppercase tracking-wider"
+                                >
+                                    {isSearching ? '...' : 'Chercher'}
+                                </button>
+                            </div>
+                            {foundMember && (
+                                <div className="p-3 bg-white border border-[#b89047]/30 rounded-sm">
+                                    <p className="text-xs font-bold text-stone-700">Membre trouvé :</p>
+                                    <p className="text-sm text-[#b89047] font-serif uppercase mt-1">{foundMember.prenom} {foundMember.nom}</p>
+                                    <p className="text-[10px] text-stone-500">Centre : {foundMember.center || 'N/A'}</p>
+                                </div>
+                            )}
                         </div>
                     )}
 
                     {regType === 'child' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-stone-50 p-4 border border-stone-200 rounded-sm">
-                            <input type="text" placeholder="Nom de l'enfant" required value={childData.nom} onChange={e => setChildData({...childData, nom: e.target.value})} className="p-2 text-sm border border-stone-200" />
-                            <input type="text" placeholder="Prénom de l'enfant" required value={childData.prenom} onChange={e => setChildData({...childData, prenom: e.target.value})} className="p-2 text-sm border border-stone-200" />
-                            <select value={childData.grade} onChange={e => setChildData({...childData, grade: e.target.value})} className="p-2 text-sm border border-stone-200 bg-white sm:col-span-2 font-bold">
-                                {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-                            </select>
+                        <div className="space-y-4 bg-stone-50 p-4 border border-stone-200 rounded-sm">
+                            <div className="flex gap-2">
+                                <input 
+                                    type="text" 
+                                    placeholder="Matricule de l'enfant (optionnel)" 
+                                    value={childData.matricule} 
+                                    onChange={e => setChildData({...childData, matricule: e.target.value})} 
+                                    className="flex-1 p-2 text-sm border border-stone-200" 
+                                />
+                                <button 
+                                    type="button" 
+                                    onClick={() => handleSearchMember(childData.matricule, 'child')}
+                                    className="bg-stone-800 text-white px-4 text-xs font-bold uppercase tracking-wider"
+                                >
+                                    Chercher
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <input type="text" placeholder="Nom de l'enfant" required value={childData.nom} onChange={e => setChildData({...childData, nom: e.target.value})} className="p-2 text-sm border border-stone-200 bg-white" />
+                                <input type="text" placeholder="Prénom de l'enfant" required value={childData.prenom} onChange={e => setChildData({...childData, prenom: e.target.value})} className="p-2 text-sm border border-stone-200 bg-white" />
+                                <select value={childData.grade} onChange={e => setChildData({...childData, grade: e.target.value})} className="p-2 text-sm border border-stone-200 bg-white sm:col-span-2 font-bold">
+                                    {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                                </select>
+                            </div>
                         </div>
                     )}
 
@@ -160,9 +238,58 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
                             <div className="flex flex-col gap-3">
                                 <label className="flex items-center gap-3 cursor-pointer p-3 border border-stone-200 hover:border-[#b89047] bg-white transition-colors">
                                     <input type="radio" name="payment" value="physical" checked={paymentMethod === 'physical'} onChange={e => setPaymentMethod(e.target.value)} />
-                                    <span className="text-lg">💵</span> <span className="text-xs font-bold">Paiement en espèces (sur place lors de l'événement)</span>
+                                    <span className="text-lg">💵</span> <span className="text-xs font-bold">Paiement en espèces (sur place)</span>
+                                </label>
+                                <label className="flex items-center gap-3 cursor-pointer p-3 border border-stone-200 hover:border-[#b89047] bg-white transition-colors">
+                                    <input type="radio" name="payment" value="momo" checked={paymentMethod === 'momo'} onChange={e => setPaymentMethod(e.target.value)} />
+                                    <span className="text-lg">📱</span> <span className="text-xs font-bold text-blue-600">Paiement par Mobile Money (Momo)</span>
+                                </label>
+                                <label className="flex items-center gap-3 cursor-pointer p-3 border border-stone-200 hover:border-[#b89047] bg-white transition-colors">
+                                    <input type="radio" name="payment" value="feexpay" checked={paymentMethod === 'feexpay'} onChange={e => setPaymentMethod(e.target.value)} />
+                                    <span className="text-lg">🛡️</span> <span className="text-xs font-bold text-[#b89047]">FeexPay (Paiement Sécurisé)</span>
                                 </label>
                             </div>
+                            
+                            {paymentMethod === 'feexpay' && (
+                                <div className="mt-4 space-y-4 border-t border-stone-200 pt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {[
+                                            { id: 'mtn', label: 'MTN', color: 'bg-yellow-400', textColor: 'text-stone-900' },
+                                            { id: 'moov', label: 'Moov', color: 'bg-blue-600', textColor: 'text-white' },
+                                            { id: 'celtiis', label: 'Celtiis', color: 'bg-stone-800', textColor: 'text-white' }
+                                        ].map(net => (
+                                            <button 
+                                                key={net.id}
+                                                type="button" 
+                                                onClick={() => setFeexNetwork(net.id)}
+                                                className={`py-2 px-1 rounded text-[10px] font-bold uppercase transition-all border-2 ${feexNetwork === net.id ? `border-[#b89047] ${net.color} ${net.textColor}` : 'border-stone-100 bg-white text-stone-400 grayscale opacity-60'}`}
+                                            >
+                                                {net.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="relative">
+                                        <label className="block text-[9px] font-bold text-stone-400 uppercase mb-1">Numéro Mobile Money (Bénin)</label>
+                                        <div className="flex">
+                                            <span className="bg-stone-100 border border-r-0 border-stone-200 px-3 flex items-center text-xs font-bold text-stone-500 rounded-l-sm">+229</span>
+                                            <input 
+                                                type="text" 
+                                                placeholder="01XXXXXXXX" 
+                                                value={feexPhone}
+                                                onChange={e => setFeexPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                                                className="flex-1 p-2 text-sm border border-stone-200 outline-none focus:border-[#b89047] rounded-r-sm"
+                                            />
+                                        </div>
+                                        <p className="text-[9px] text-stone-400 mt-1 italic">Saisissez votre numéro à 8 ou 10 chiffres.</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {paymentMethod === 'momo' && (
+                                <div className="mt-4 p-3 bg-blue-50 border border-blue-100 text-blue-700 text-[10px] italic">
+                                    Note : Le paiement par Momo direct nécessite une validation manuelle par l'administration après votre transfert.
+                                </div>
+                            )}
                         </div>
                     )}
 
