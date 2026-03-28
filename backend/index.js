@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const nodemailer = require('nodemailer');
+const axios = require('axios');
 
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -77,8 +78,8 @@ app.post('/api/register', async (req, res) => {
         const {
             nom, nom_jeune_fille, prenom, date_naissance, lieu_naissance,
             nationalite, adresse, email, telephone_whatsapp, telephone_autre,
-            etat_civil, profession, aptitudes, nombre_enfants, motivation_adhesion,
-            password
+            etat_civil, profession, aptitudes, nombre_enfants, motivation_adhesion
+            // Removed password from req.body
         } = req.body;
 
         const userExists = await db.query('SELECT * FROM users WHERE email = $1', [email]);
@@ -86,8 +87,10 @@ app.post('/api/register', async (req, res) => {
             return res.status(400).json({ message: "Cet email existe déjà" });
         }
 
+        // Generate a random internal password because the DB field is NOT NULL
+        const internalPassword = Math.random().toString(36).slice(-10);
         const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+        const hashedPassword = await bcrypt.hash(internalPassword, salt);
 
         const newUser = await db.query(
             `INSERT INTO users (
@@ -115,7 +118,7 @@ app.post('/api/register', async (req, res) => {
                         <h2 style="color: #b89047;">Demande d'adhésion reçue</h2>
                         <p>Bonjour ${prenom} ${nom},</p>
                         <p>Nous vous remercions et vous confirmons la bonne réception de votre demande d'adhésion.</p>
-                        <p>Le secrétariat du Lectorium Rosicrucianum va examiner votre demande. Vous recevrez un nouvel e-mail dès qu'un administrateur aura statué sur votre compte.</p>
+                        <p>Le secrétariat du Lectorium Rosicrucianum va examiner votre demande. Vous recevrez un nouvel e-mail dès qu'un administrateur aura statué sur votre compte et vous attribuera un numéro de matricule.</p>
                     `
                 });
             } catch (mailErr) { console.error("Erreur email", mailErr); }
@@ -133,7 +136,7 @@ app.get('/api/members/matricule/:matricule', async (req, res) => {
     try {
         const { matricule } = req.params;
         const member = await db.query(
-            `SELECT nom, prenom, sexe, centre as center, grade as aspect, date_naissance 
+            `SELECT nom, prenom, sexe, centre as center, grade as aspect, date_naissance, email 
              FROM users 
              WHERE matricule = $1`,
             [matricule]
@@ -162,18 +165,31 @@ app.get('/api/members/matricule/:matricule', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { email, password, matricule, loginType } = req.body;
 
-        const userQuery = await db.query('SELECT * FROM users WHERE email = $1', [email]);
-        if (userQuery.rows.length === 0) {
-            return res.status(400).json({ message: "Identifiants incorrects" });
-        }
+        let user;
+        if (loginType === 'membre') {
+            if (!matricule) return res.status(400).json({ message: "Veuillez renseigner votre matricule" });
+            const userQuery = await db.query('SELECT * FROM users WHERE matricule = $1', [matricule]);
+            if (userQuery.rows.length === 0) {
+                return res.status(400).json({ message: "Matricule incorrect ou non trouvé" });
+            }
+            user = userQuery.rows[0];
+            // Enforce role check if needed, but here we allow anyone with matricule to log in as member
+        } else {
+            // Admin/SuperAdmin Login
+            const userQuery = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+            if (userQuery.rows.length === 0) {
+                return res.status(400).json({ message: "Identifiants incorrects" });
+            }
 
-        const user = userQuery.rows[0];
-        const isMatch = await bcrypt.compare(password, user.password);
-
-        if (!isMatch) {
-            return res.status(400).json({ message: "Identifiants incorrects" });
+            user = userQuery.rows[0];
+            
+            // Check password only for Non-Member login types (Admins)
+            const isMatch = await bcrypt.compare(password, user.password);
+            if (!isMatch) {
+                return res.status(400).json({ message: "Identifiants incorrects" });
+            }
         }
 
         if (user.status === 'pending') {
@@ -219,15 +235,12 @@ app.post('/api/forgot-password', async (req, res) => {
 
                 subject: "Réinitialisation de votre mot de passe",
                 html: `
-                    <h2 style="color: #b89047;">Mot de passe oublié</h2>
+                    <h2 style="color: #b89047;">Changement de mot de passe</h2>
                     <p>Bonjour ${user.prenom} ${user.nom},</p>
-                    <p>Votre mot de passe a bien été réinitialisé. Voici votre mot de passe temporaire :</p>
+                    <p>Votre mot de passe a bien été mis à jour. Voici votre nouveau mot de passe temporaire :</p>
                     <div style="font-size: 20px; font-weight: bold; background: #fdfbf7; padding: 15px; border: 1px solid #b89047; display: inline-block; margin: 10px 0;">
                         ${tempPassword}
                     </div>
-                    <p>Connectez-vous dès à présent avec ce nouveau mot de passe sur la plateforme :</p>
-                    <p><a href="https://lectorium-application.vercel.app/login" style="color: #b89047; font-weight: bold;">Accéder à la page de connexion</a></p>
-
                 `
             });
             res.json({ message: "Un nouveau mot de passe a été envoyé à votre adresse email." });
@@ -248,9 +261,17 @@ app.get('/api/users/me', auth(), async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Erreur" }); }
 });
 
-// Update Profile (Member themselves)
+// Update Profile
 app.put('/api/users/me', auth(), async (req, res) => {
     try {
+        const currentUser = await db.query('SELECT role, matricule, centre, nom, prenom FROM users WHERE id = $1', [req.user.id]);
+        const userRole = currentUser.rows[0].role;
+
+        // Restriction: Members can only read their profile, not update it.
+        if (userRole === 'Membre') {
+            return res.status(403).json({ message: "Les membres ne peuvent pas modifier leurs informations eux-mêmes. Veuillez contacter l'administration." });
+        }
+
         const {
             nom, nom_jeune_fille, prenom, date_naissance, lieu_naissance,
             nationalite, adresse, email, telephone_whatsapp, telephone_autre,
@@ -267,21 +288,11 @@ app.put('/api/users/me', auth(), async (req, res) => {
             if (matCheck.rows.length > 0) return res.status(400).json({ message: "Le matricule est déjà utilisé" });
         }
 
-        // Logic for restricted fields (matricule, centre)
-        const currentUser = await db.query('SELECT role, matricule, centre, nom, prenom FROM users WHERE id = $1', [req.user.id]);
-        const userRole = currentUser.rows[0].role;
         const oldMatricule = currentUser.rows[0].matricule;
         const oldCentre = currentUser.rows[0].centre;
 
-        let finalMatricule = matricule;
-        let finalCentre = centre;
-
-        if (userRole === 'Membre') {
-            // Members cannot change their own matricule or center
-            finalMatricule = oldMatricule;
-            finalCentre = oldCentre;
-        } else if (matricule !== undefined && centre !== undefined) {
-             // Admin/SuperAdmin changed their own info
+        // Admins can change their info, but notify other admins if sensitive fields change
+        if (matricule !== undefined && centre !== undefined) {
              if (matricule !== oldMatricule || centre !== oldCentre) {
                 await notifyAdmins(
                     "Notification de changement d'informations sensibles (Admin)",
@@ -312,9 +323,8 @@ app.put('/api/users/me', auth(), async (req, res) => {
             nom, prenom, email, nom_jeune_fille, date_naissance || null,
             lieu_naissance, nationalite, adresse, telephone_whatsapp,
             telephone_autre, etat_civil, profession, aptitudes,
-            nombre_enfants || 0, motivation_adhesion, sexe, finalCentre, finalMatricule
+            nombre_enfants || 0, motivation_adhesion, sexe, centre, matricule
         ];
-
 
         if (password && password.trim() !== "") {
             const salt = await bcrypt.genSalt(10);
@@ -396,10 +406,10 @@ app.post('/api/users', auth(['Admin', 'SuperAdmin']), async (req, res) => {
 // Validation Adhesion
 app.put('/api/admin/users/:id/status', auth(['Admin', 'SuperAdmin']), async (req, res) => {
     try {
-        const { status } = req.body;
+        const { status, matricule } = req.body;
 
         // Vérifier la hiérarchie pour la validation
-        const targetUserQuery = await db.query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+        const targetUserQuery = await db.query('SELECT role, prenom, nom, email FROM users WHERE id = $1', [req.params.id]);
         if (targetUserQuery.rows.length === 0) return res.status(404).json({ message: "Utilisateur non trouvé" });
         const targetUser = targetUserQuery.rows[0];
 
@@ -407,37 +417,62 @@ app.put('/api/admin/users/:id/status', auth(['Admin', 'SuperAdmin']), async (req
             return res.status(403).json({ message: "Vous ne pouvez pas modifier le statut de l'Admin Suprême" });
         }
 
-        await db.query('UPDATE users SET status = $1 WHERE id = $2', [status, req.params.id]);
+        if (status === 'approved') {
+            if (!matricule) return res.status(400).json({ message: "Un numéro matricule est requis pour valider l'adhésion" });
+            
+            // Check if matricule is already used
+            const matCheck = await db.query('SELECT id FROM users WHERE matricule = $1 AND id != $2', [matricule, req.params.id]);
+            if (matCheck.rows.length > 0) return res.status(400).json({ message: "Ce matricule est déjà attribué" });
 
-        if (status === 'approved' && process.env.SMTP_USER) {
-            const uQuery = await db.query('SELECT nom, prenom, email FROM users WHERE id = $1', [req.params.id]);
-            if (uQuery.rows.length > 0) {
-                const u = uQuery.rows[0];
+            await db.query('UPDATE users SET status = $1, matricule = $2 WHERE id = $3', [status, matricule, req.params.id]);
+            
+            if (process.env.SMTP_USER) {
+                // Fetch activities for the current month
+                const now = new Date();
+                const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                const activities = await db.query(
+                    'SELECT title, date_start FROM activities WHERE date_start >= $1 AND date_start <= $2 ORDER BY date_start ASC',
+                    [now, endOfMonth]
+                );
+
+                let activitiesHtml = '';
+                if (activities.rows.length > 0) {
+                    activitiesHtml = '<h3 style="color: #b89047;">Activités du mois :</h3><ul>';
+                    activities.rows.forEach(act => {
+                        activitiesHtml += `<li><strong>${act.title}</strong> - ${new Date(act.date_start).toLocaleDateString('fr-FR')}</li>`;
+                    });
+                    activitiesHtml += '</ul>';
+                }
+
                 try {
                     await transporter.sendMail({
                         from: fromEmail,
-                        to: u.email,
-                        subject: "Votre adhésion est confirmée",
+                        to: targetUser.email,
+                        subject: "Bienvenue au Lectorium Rosicrucianum - Votre adhésion est confirmée",
                         html: `
                             <h2 style="color: #b89047;">Adhésion Validée !</h2>
-                            <p>Bonjour ${u.prenom} ${u.nom},</p>
-                            <p>Nous avons le plaisir de vous annoncer que votre compte a été créé et activé par l'administration.</p>
-                            <p>Vous pouvez dès à présent vous connecter sur la plateforme avec les identifiants que vous aviez fournis :</p>
-                            <ul>
-                                <li><strong>Adresse Email :</strong> ${u.email}</li>
-                                <li><strong>Mot de passe :</strong> <i>(Le mot de passe confidentiel que vous avez soumis dans le formulaire d'adhésion)</i></li>
-                            </ul>
+                            <p>Bonjour ${targetUser.prenom} ${targetUser.nom},</p>
+                            <p>Nous avons le plaisir de vous annoncer que votre demande d'adhésion a été acceptée.</p>
+                            <p>Voici votre <strong>Numéro Matricule</strong> qui vous servira désormais d'identifiant unique pour vous connecter :</p>
+                            <div style="font-size: 24px; font-weight: bold; background: #fdfbf7; padding: 15px; border: 1px solid #b89047; display: inline-block; margin: 10px 0; color: #b89047;">
+                                ${matricule}
+                            </div>
+                            <p>Vous n'avez plus besoin d'email ni de mot de passe pour accéder à votre espace membre, utilisez simplement ce matricule.</p>
+                            ${activitiesHtml}
                             <p style="margin-top: 20px;">
-                                <a href="https://lectorium-application.vercel.app/login" style="color: #b89047; font-weight: bold;">Cliquez ici pour vous connecter</a>
+                                <a href="https://lectorium-application.vercel.app/login" style="background-color: #b89047; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Accéder à mon espace</a>
                             </p>
                         `
                     });
                 } catch (mailErr) { console.error("Erreur email d'approbation", mailErr); }
             }
+        } else {
+            await db.query('UPDATE users SET status = $1 WHERE id = $2', [status, req.params.id]);
         }
 
         res.json({ message: "Statut mis à jour" });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ message: "Erreur" });
     }
 });
@@ -667,6 +702,38 @@ app.post('/api/register-activity', async (req, res) => {
 
         let baseStatus = 'approved';
         let pmtStatus = (activity.price_fcfa === 0 || activity.price_fcfa === null) ? 'paid' : (payment_method === 'physical' ? 'physical' : 'pending');
+
+        if (payment_method === 'feexpay' && req.body.feexpay_network && req.body.feexpay_phone) {
+            const networkMap = { mtn: 'mtn', moov: 'moov', celtiis: 'celtiis_bj' };
+            const endpoint = `https://api.feexpay.me/api/transactions/public/requesttopay/${networkMap[req.body.feexpay_network]}`;
+            
+            try {
+                // Formatting phone to 229 prefix if missing
+                let phone = req.body.feexpay_phone;
+                if (!phone.startsWith('229')) phone = '229' + phone;
+
+                // Fire the payment request
+                const paymentRes = await axios.post(endpoint, {
+                    phoneNumber: phone,
+                    amount: activity.price_fcfa,
+                    shop: process.env.FEEXPAY_SHOP_ID,
+                    description: `Adhesion Lectorium - Activity ${activity.title.substring(0, 15)}`, // Truncated to prevent API limits
+                }, {
+                    headers: {
+                        'Authorization': `Bearer ${process.env.FEEXPAY_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                // Assuming Feexpay returns some successful status here, but it triggers a USSD prompt asynchronously.
+                // We'll leave payment_status as 'pending' to be approved later either via webhook or admin validation.
+                // Optionally save paymentRes.data reference if we had a column. For now it is implicit in 'pending'.
+                
+            } catch (paymentErr) {
+                console.error("FeexPay Error:", paymentErr.response?.data || paymentErr.message);
+                return res.status(400).json({ message: "Erreur lors de l'initiation du paiement FeexPay. Veuillez vérifier votre numéro d'opérateur mobile." });
+            }
+        }
 
         const dbRes = await db.query(
             `INSERT INTO registrations (user_id, activity_id, selected_site, status, payment_status, payment_method, guest_info, child_info) 
