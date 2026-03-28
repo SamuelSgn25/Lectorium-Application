@@ -21,7 +21,21 @@ export const AuthProvider = ({ children }) => {
     const login = async (email, password) => {
         try {
             setError(null);
-            const res = await axios.post('/api/login', { email, password });
+            const res = await axios.post('/api/login', { email, password, loginType: 'admin' });
+            localStorage.setItem('token', res.data.token);
+            localStorage.setItem('user', JSON.stringify(res.data.user));
+            setUser(res.data.user);
+            return res.data;
+        } catch (err) {
+            setError(err.response?.data?.message || "Une erreur s'est produite.");
+            throw err;
+        }
+    };
+
+    const loginByMatricule = async (matricule) => {
+        try {
+            setError(null);
+            const res = await axios.post('/api/login', { matricule, loginType: 'membre' });
             localStorage.setItem('token', res.data.token);
             localStorage.setItem('user', JSON.stringify(res.data.user));
             setUser(res.data.user);
@@ -39,7 +53,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, setUser, loading, error, login, logout }}>
+        <AuthContext.Provider value={{ user, setUser, loading, error, login, loginByMatricule, logout }}>
             {children}
         </AuthContext.Provider>
     );
