@@ -29,8 +29,9 @@ const Dashboard = () => {
         title: '', description: '', type: 'Conférence de Renouvellement',
         date_start: '', date_end: '', inscription_start: '', inscription_end: '',
         price_fcfa: 0, max_participants: '', is_public: true,
-        sites: [], program: []
+        sites: [], program: [], is_paid: false, participation_amounts: []
     });
+    const [amountItem, setAmountItem] = useState({ label: '', amount: '' });
     const [programItem, setProgramItem] = useState({ title: '', hour_start: '', hour_end: '', day_date: '' });
 
     const [selectedUserDetail, setSelectedUserDetail] = useState(null);
@@ -188,7 +189,7 @@ const Dashboard = () => {
             if (activityForm.sites.length === 0) { alert("Veuillez sélectionner au moins un site"); return; }
             await axios.post(`/api/activities`, activityForm, { headers });
             alert("Activité créée de manière globale !");
-            setActivityForm({ title: '', description: '', type: 'Conférence de Renouvellement', date_start: '', date_end: '', inscription_start: '', inscription_end: '', price_fcfa: 0, max_participants: '', is_public: true, sites: [], program: [] });
+            setActivityForm({ title: '', description: '', type: 'Conférence de Renouvellement', date_start: '', date_end: '', inscription_start: '', inscription_end: '', price_fcfa: 0, max_participants: '', is_public: true, sites: [], program: [], is_paid: false, participation_amounts: [] });
             fetchData();
         } catch (err) { console.error(err); }
     };
@@ -536,7 +537,7 @@ const Dashboard = () => {
                                                     <div key={r.id} className="bg-stone-50 p-4 border border-stone-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                                         <div>
                                                             <h3 className="font-serif text-[#b89047] text-lg">{r.title}</h3>
-                                                            <p className="text-stone-500 text-sm mt-1">{new Date(r.date_start).toLocaleString('fr-FR', { hour12: false })} • Site : {r.selected_site || 'Global'} • {r.price_fcfa} CFA</p>
+                                                            <p className="text-stone-500 text-sm mt-1">{new Date(r.date_start).toLocaleString('fr-FR', { hour12: false })} • Site : {r.selected_site || 'Global'} • {r.payment_amount || r.price_fcfa} CFA</p>
                                                         </div>
                                                         <div className="flex gap-2 flex-wrap">
                                                             <span className={`px-3 py-1 text-xs border uppercase tracking-wider font-semibold ${r.status === 'approved' ? 'border-green-200 bg-green-50 text-green-700' : r.status === 'rejected' ? 'border-red-200 bg-red-50 text-red-700' : 'border-yellow-200 bg-yellow-50 text-yellow-700'}`}>
@@ -569,7 +570,7 @@ const Dashboard = () => {
 
                                                         <div className="mt-auto pt-6 border-t border-stone-100 flex flex-col gap-4">
                                                             <div className="flex justify-between items-center">
-                                                                <span className="font-bold text-stone-700">{a.price_fcfa} FCFA</span>
+                                                                <span className="font-bold text-stone-700 text-xs">{a.is_paid || a.price_fcfa > 0 ? (a.participation_amounts && a.participation_amounts.length > 0 ? 'Dès ' + Math.min(...a.participation_amounts.map(p => p.amount)) + ' FCFA' : a.price_fcfa + ' FCFA') : 'Gratuit'}</span>
                                                                 <button onClick={() => setViewingProgram(a)} className="text-[10px] uppercase font-bold text-stone-400 hover:text-[#b89047] tracking-widest underline decoration-dotted">Voir le programme</button>
                                                             </div>
 
@@ -834,9 +835,41 @@ const Dashboard = () => {
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">Montant Participation (FCFA)</label>
-                                            <input type="number" min="0" value={activityForm.price_fcfa} onChange={e => setActivityForm({ ...activityForm, price_fcfa: e.target.value })} className="w-full bg-white border border-stone-200 p-3 outline-none focus:border-[#b89047]" />
+                                            <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">Activité payante ? *</label>
+                                            <select value={activityForm.is_paid ? "1" : "0"} onChange={e => setActivityForm({ ...activityForm, is_paid: e.target.value === "1" })} required className="w-full bg-white border border-stone-200 p-3 outline-none focus:border-[#b89047]">
+                                                <option value="0">Gratuite</option>
+                                                <option value="1">Payante</option>
+                                            </select>
                                         </div>
+
+                                        {activityForm.is_paid && (
+                                            <div className="md:col-span-2 border border-stone-200 p-4 bg-white mt-2">
+                                                <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-3">Montants de Participation (FCFA)</label>
+                                                <div className="flex gap-2 mb-3">
+                                                    <input type="text" placeholder="Catégorie (ex: Membres, Public)" value={amountItem.label} onChange={e => setAmountItem({...amountItem, label: e.target.value})} className="flex-1 p-2 border border-stone-200 text-sm" />
+                                                    <input type="number" placeholder="Montant" value={amountItem.amount} onChange={e => setAmountItem({...amountItem, amount: e.target.value})} className="w-32 p-2 border border-stone-200 text-sm" />
+                                                    <button type="button" onClick={() => {
+                                                        if (amountItem.label && amountItem.amount) {
+                                                            setActivityForm({ ...activityForm, participation_amounts: [...activityForm.participation_amounts, { label: amountItem.label, amount: parseInt(amountItem.amount) }] });
+                                                            setAmountItem({ label: '', amount: '' });
+                                                        }
+                                                    }} className="bg-stone-800 text-white px-4 text-xs font-bold">Ajouter</button>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {activityForm.participation_amounts.map((item, idx) => (
+                                                        <div key={idx} className="flex justify-between p-2 bg-stone-50 border border-stone-100 text-sm">
+                                                            <span>{item.label}</span>
+                                                            <span className="font-bold text-[#b89047]">{item.amount} FCFA</span>
+                                                            <button type="button" onClick={() => {
+                                                                const newAmts = [...activityForm.participation_amounts];
+                                                                newAmts.splice(idx, 1);
+                                                                setActivityForm({ ...activityForm, participation_amounts: newAmts });
+                                                            }} className="text-red-500"><XCircle size={16} /></button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <div>
                                             <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">Nombre de places limitées</label>
@@ -1184,7 +1217,7 @@ const Dashboard = () => {
                                             <td className="p-3 text-stone-400 italic">
                                                 {r.guest_info ? r.guest_info.email : r.child_info ? r.child_info.grade : 'Compte Officiel'}
                                             </td>
-                                            <td className="p-3 text-right font-bold">{r.payment_status === 'paid' ? 'Payé' : `${viewingRegistrations.price_fcfa} FCFA`}</td>
+                                            <td className="p-3 text-right font-bold">{r.payment_status === 'paid' ? 'Payé' : `${r.payment_amount || viewingRegistrations.price_fcfa} FCFA`}</td>
                                         </tr>
                                     ))}
                                     {data.registrations.filter(r => r.activity_id === viewingRegistrations.id).length === 0 && (
