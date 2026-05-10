@@ -13,10 +13,10 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
     const [cond1, setCond1] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [feexNetwork, setFeexNetwork] = useState('mtn');
-    const [feexPhone, setFeexPhone] = useState('');
+    const [paymentReference, setPaymentReference] = useState('');
 
-    const isPayant = event.price_fcfa > 0;
+    const isPayant = event.is_paid || event.price_fcfa > 0;
+    const [paymentAmount, setPaymentAmount] = useState('');
 
     useEffect(() => {
         // Auto-select site if only one is available
@@ -70,9 +70,9 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
 
         if (regType === 'other_member' && !foundMember) { setError("Veuillez d'abord rechercher et valider un membre par son matricule."); return; }
         if (regType === 'child' && (!childData.nom || !childData.prenom)) { setError("Veuillez remplir le nom et le prénom de l'enfant."); return; }
-        if (paymentMethod === 'feexpay') {
-            if (!feexPhone || feexPhone.length < 8) {
-                setError("Veuillez entrer un numéro de téléphone valide pour FeexPay.");
+        if (paymentMethod === 'momo') {
+            if (!paymentReference || paymentReference.length < 5) {
+                setError("Veuillez entrer la référence de votre transaction MTN.");
                 return;
             }
         }
@@ -89,9 +89,9 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
             payment_method: paymentMethod
         };
 
-        if (paymentMethod === 'feexpay') {
-            payload.feexpay_network = feexNetwork;
-            payload.feexpay_phone = feexPhone;
+        if (paymentMethod === 'momo') {
+            payload.payment_reference = paymentReference;
+            payload.payment_amount = paymentAmount || (event.participation_amounts && event.participation_amounts.length > 0 ? event.participation_amounts[0].amount : event.price_fcfa);
         }
 
         if (regType === 'other_member') {
@@ -119,7 +119,17 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-stone-600">
                         <div><strong>Début:</strong> {formatDate(event.date_start)}</div>
                         <div><strong>Fin:</strong> {formatDate(event.date_end)}</div>
-                        <div className="col-span-1 sm:col-span-2 font-bold text-[#b89047]"><strong>Prix:</strong> {isPayant ? `${event.price_fcfa} FCFA` : 'Gratuit'}</div>
+                        <div className="col-span-1 sm:col-span-2 font-bold text-[#b89047]">
+                            <strong>Prix:</strong> {isPayant ? (
+                                event.participation_amounts && event.participation_amounts.length > 0 ? (
+                                    <ul className="list-disc ml-5 font-normal text-sm text-stone-600 mt-1">
+                                        {event.participation_amounts.map((amt, idx) => (
+                                            <li key={idx}><strong>{amt.label} :</strong> {amt.amount} FCFA</li>
+                                        ))}
+                                    </ul>
+                                ) : `${event.price_fcfa} FCFA`
+                            ) : 'Gratuit'}
+                        </div>
                     </div>
                 </div>
 
@@ -242,52 +252,41 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
                                 </label>
                                 <label className="flex items-center gap-3 cursor-pointer p-3 border border-stone-200 hover:border-[#b89047] bg-white transition-colors">
                                     <input type="radio" name="payment" value="momo" checked={paymentMethod === 'momo'} onChange={e => setPaymentMethod(e.target.value)} />
-                                    <span className="text-lg">📱</span> <span className="text-xs font-bold text-blue-600">Paiement par Mobile Money (Momo)</span>
-                                </label>
-                                <label className="flex items-center gap-3 cursor-pointer p-3 border border-stone-200 hover:border-[#b89047] bg-white transition-colors">
-                                    <input type="radio" name="payment" value="feexpay" checked={paymentMethod === 'feexpay'} onChange={e => setPaymentMethod(e.target.value)} />
-                                    <span className="text-lg">🛡️</span> <span className="text-xs font-bold text-[#b89047]">FeexPay (Paiement Sécurisé)</span>
+                                    <span className="text-lg">📱</span> <span className="text-xs font-bold text-yellow-600">Paiement par MTN Mobile Money</span>
                                 </label>
                             </div>
                             
-                            {paymentMethod === 'feexpay' && (
-                                <div className="mt-4 space-y-4 border-t border-stone-200 pt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {[
-                                            { id: 'mtn', label: 'MTN', color: 'bg-yellow-400', textColor: 'text-stone-900' },
-                                            { id: 'moov', label: 'Moov', color: 'bg-blue-600', textColor: 'text-white' },
-                                            { id: 'celtiis', label: 'Celtiis', color: 'bg-stone-800', textColor: 'text-white' }
-                                        ].map(net => (
-                                            <button 
-                                                key={net.id}
-                                                type="button" 
-                                                onClick={() => setFeexNetwork(net.id)}
-                                                className={`py-2 px-1 rounded text-[10px] font-bold uppercase transition-all border-2 ${feexNetwork === net.id ? `border-[#b89047] ${net.color} ${net.textColor}` : 'border-stone-100 bg-white text-stone-400 grayscale opacity-60'}`}
-                                            >
-                                                {net.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <div className="relative">
-                                        <label className="block text-[9px] font-bold text-stone-400 uppercase mb-1">Numéro Mobile Money (Bénin)</label>
-                                        <div className="flex">
-                                            <span className="bg-stone-100 border border-r-0 border-stone-200 px-3 flex items-center text-xs font-bold text-stone-500 rounded-l-sm">+229</span>
-                                            <input 
-                                                type="text" 
-                                                placeholder="01XXXXXXXX" 
-                                                value={feexPhone}
-                                                onChange={e => setFeexPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                                                className="flex-1 p-2 text-sm border border-stone-200 outline-none focus:border-[#b89047] rounded-r-sm"
-                                            />
-                                        </div>
-                                        <p className="text-[9px] text-stone-400 mt-1 italic">Saisissez votre numéro à 8 ou 10 chiffres.</p>
-                                    </div>
-                                </div>
-                            )}
-
                             {paymentMethod === 'momo' && (
-                                <div className="mt-4 p-3 bg-blue-50 border border-blue-100 text-blue-700 text-[10px] italic">
-                                    Note : Le paiement par Momo direct nécessite une validation manuelle par l'administration après votre transfert.
+                                <div className="mt-4 space-y-4 border-t border-stone-200 pt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="p-3 bg-yellow-50 border border-yellow-100 text-yellow-800 text-xs rounded-sm mb-4">
+                                        Veuillez effectuer un transfert MTN Mobile Money au profit de <strong>Lectorium Rosicrucianum Bénin</strong>.
+                                        Une fois le transfert effectué, veuillez renseigner la <strong>Référence de transaction</strong> figurant dans le SMS de confirmation MTN.
+                                    </div>
+                                    {event.participation_amounts && event.participation_amounts.length > 0 && (
+                                        <div className="relative mb-4">
+                                            <label className="block text-[10px] font-bold text-stone-600 uppercase mb-2">Montant payé (FCFA) *</label>
+                                            <select 
+                                                value={paymentAmount}
+                                                onChange={e => setPaymentAmount(e.target.value)}
+                                                className="w-full p-3 text-sm border border-stone-200 outline-none focus:border-[#b89047] rounded-sm bg-white"
+                                            >
+                                                <option value="">Sélectionnez le montant correspondant</option>
+                                                {event.participation_amounts.map((amt, idx) => (
+                                                    <option key={idx} value={amt.amount}>{amt.label} - {amt.amount} FCFA</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                    <div className="relative">
+                                        <label className="block text-[10px] font-bold text-stone-600 uppercase mb-2">Référence de Transaction MTN *</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Ex: 2314567890" 
+                                            value={paymentReference}
+                                            onChange={e => setPaymentReference(e.target.value)}
+                                            className="w-full p-3 text-sm border border-stone-200 outline-none focus:border-[#b89047] rounded-sm bg-white"
+                                        />
+                                    </div>
                                 </div>
                             )}
                         </div>
