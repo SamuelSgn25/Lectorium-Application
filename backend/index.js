@@ -25,6 +25,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Run migration for payment columns silently on startup
+db.query(`
+    ALTER TABLE activities ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT false;
+    ALTER TABLE activities ADD COLUMN IF NOT EXISTS participation_amounts JSONB DEFAULT '[]';
+    ALTER TABLE registrations ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255);
+    ALTER TABLE registrations ADD COLUMN IF NOT EXISTS payment_amount INTEGER;
+`).catch(err => console.error("Auto-migration error:", err));
+
 // Helper function to notify all admins
 const notifyAdmins = async (subject, htmlContent, excludeUserId = null) => {
     // Check if SMTP is configured
@@ -609,12 +617,12 @@ app.get('/api/activities', async (req, res) => {
 
 app.post('/api/activities', auth(['Admin', 'SuperAdmin']), async (req, res) => {
     try {
-        let { title, description, type, date_start, date_end, inscription_start, inscription_end, sites, price_fcfa, max_participants, is_public, program } = req.body;
+        let { title, description, type, date_start, date_end, inscription_start, inscription_end, sites, price_fcfa, max_participants, is_public, program, is_paid, participation_amounts } = req.body;
 
         const newActivity = await db.query(
-            `INSERT INTO activities (title, description, type, date_start, date_end, inscription_start, inscription_end, sites, price_fcfa, max_participants, is_public, program) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
-            [title, description, type, date_start, date_end, inscription_start || null, inscription_end || null, JSON.stringify(sites), price_fcfa || 0, max_participants || null, is_public, JSON.stringify(program || [])]
+            `INSERT INTO activities (title, description, type, date_start, date_end, inscription_start, inscription_end, sites, price_fcfa, max_participants, is_public, program, is_paid, participation_amounts) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+            [title, description, type, date_start, date_end, inscription_start || null, inscription_end || null, JSON.stringify(sites), price_fcfa || 0, max_participants || null, is_public, JSON.stringify(program || []), is_paid || false, JSON.stringify(participation_amounts || [])]
         );
         res.status(201).json(newActivity.rows[0]);
     } catch (err) {
@@ -626,12 +634,12 @@ app.post('/api/activities', auth(['Admin', 'SuperAdmin']), async (req, res) => {
 app.put('/api/activities/:id', auth(['Admin', 'SuperAdmin']), async (req, res) => {
 
     try {
-        let { title, description, type, date_start, date_end, inscription_start, inscription_end, sites, price_fcfa, max_participants, is_public, program } = req.body;
+        let { title, description, type, date_start, date_end, inscription_start, inscription_end, sites, price_fcfa, max_participants, is_public, program, is_paid, participation_amounts } = req.body;
 
         const updatedActivity = await db.query(
-            `UPDATE activities SET title = $1, description = $2, type = $3, date_start = $4, date_end = $5, inscription_start = $6, inscription_end = $7, sites = $8, price_fcfa = $9, max_participants = $10, is_public = $11, program = $12 
-             WHERE id = $13 RETURNING *`,
-            [title, description, type, date_start, date_end, inscription_start || null, inscription_end || null, JSON.stringify(sites), price_fcfa || 0, max_participants || null, is_public, JSON.stringify(program || []), req.params.id]
+            `UPDATE activities SET title = $1, description = $2, type = $3, date_start = $4, date_end = $5, inscription_start = $6, inscription_end = $7, sites = $8, price_fcfa = $9, max_participants = $10, is_public = $11, program = $12, is_paid = $13, participation_amounts = $14 
+             WHERE id = $15 RETURNING *`,
+            [title, description, type, date_start, date_end, inscription_start || null, inscription_end || null, JSON.stringify(sites), price_fcfa || 0, max_participants || null, is_public, JSON.stringify(program || []), is_paid || false, JSON.stringify(participation_amounts || []), req.params.id]
         );
         res.json(updatedActivity.rows[0]);
     } catch (err) {
@@ -689,9 +697,9 @@ app.get('/api/my-registrations', auth(['Membre', 'Admin', 'SuperAdmin']), async 
 
 app.post('/api/register-activity', async (req, res) => {
     try {
-        const { activity_id, selected_site, motivation, experience, attentes, payment_method, guest_info, child_info } = req.body;
+        const { activity_id, selected_site, motivation, experience, attentes, payment_method, guest_info, child_info, payment_reference, payment_amount } = req.body;
         
-        // Vérifier si l'activité existe et son prix
+        // Vérifier si l'activité existe
         const activityQuery = await db.query('SELECT * FROM activities WHERE id = $1', [activity_id]);
         if (activityQuery.rows.length === 0) return res.status(404).json({ message: "Activité non trouvée" });
         const activity = activityQuery.rows[0];
@@ -705,6 +713,9 @@ app.post('/api/register-activity', async (req, res) => {
         }
 
         let userId = null;
+        let userEmail = guest_info ? guest_info.email : null;
+        let userNom = guest_info ? guest_info.nom : null;
+        let userPrenom = guest_info ? guest_info.prenom : null;
         let authHeader = req.headers.authorization;
         if (authHeader) {
             try {
@@ -719,6 +730,15 @@ app.post('/api/register-activity', async (req, res) => {
             if (memberToRegister.rows.length === 0) return res.status(404).json({ message: "Matricule non trouvé" });
             userId = memberToRegister.rows[0].id; // Override userId to the found member
         }
+        
+        if (userId && !userEmail) {
+            const uQ = await db.query('SELECT email, nom, prenom FROM users WHERE id = $1', [userId]);
+            if (uQ.rows.length > 0) {
+                userEmail = uQ.rows[0].email;
+                userNom = uQ.rows[0].nom;
+                userPrenom = uQ.rows[0].prenom;
+            }
+        }
 
         if (userId && !guest_info && !child_info) {
             const regCheck = await db.query('SELECT * FROM registrations WHERE user_id = $1 AND activity_id = $2', [userId, activity_id]);
@@ -726,44 +746,45 @@ app.post('/api/register-activity', async (req, res) => {
         }
 
         let baseStatus = 'approved';
-        let pmtStatus = (activity.price_fcfa === 0 || activity.price_fcfa === null) ? 'paid' : (payment_method === 'physical' ? 'physical' : 'pending');
+        let isActPaid = activity.is_paid || activity.price_fcfa > 0;
+        let pmtStatus = (!isActPaid) ? 'paid' : (payment_method === 'physical' ? 'physical' : 'pending');
 
-        if (payment_method === 'feexpay' && req.body.feexpay_network && req.body.feexpay_phone) {
-            const networkMap = { mtn: 'mtn', moov: 'moov', celtiis: 'celtiis_bj' };
-            const endpoint = `https://api.feexpay.me/api/transactions/public/requesttopay/${networkMap[req.body.feexpay_network]}`;
+        if (payment_method === 'momo' && payment_reference) {
+            // Mocking MTN verification
+            if (payment_reference.length < 5) {
+                return res.status(400).json({ message: "Référence MTN invalide." });
+            }
+            pmtStatus = 'paid';
             
-            try {
-                // Formatting phone to 229 prefix if missing
-                let phone = req.body.feexpay_phone;
-                if (!phone.startsWith('229')) phone = '229' + phone;
-
-                // Fire the payment request
-                const paymentRes = await axios.post(endpoint, {
-                    phoneNumber: phone,
-                    amount: activity.price_fcfa,
-                    shop: process.env.FEEXPAY_SHOP_ID,
-                    description: `Adhesion Lectorium - Activity ${activity.title.substring(0, 15)}`, // Truncated to prevent API limits
-                }, {
-                    headers: {
-                        'Authorization': `Bearer ${process.env.FEEXPAY_API_KEY}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                // Assuming Feexpay returns some successful status here, but it triggers a USSD prompt asynchronously.
-                // We'll leave payment_status as 'pending' to be approved later either via webhook or admin validation.
-                // Optionally save paymentRes.data reference if we had a column. For now it is implicit in 'pending'.
-                
-            } catch (paymentErr) {
-                console.error("FeexPay Error:", paymentErr.response?.data || paymentErr.message);
-                return res.status(400).json({ message: "Erreur lors de l'initiation du paiement FeexPay. Veuillez vérifier votre numéro d'opérateur mobile." });
+            // Envoyer reçu de paiement
+            if (process.env.SMTP_USER && userEmail) {
+                try {
+                    await transporter.sendMail({
+                        from: fromEmail,
+                        to: userEmail,
+                        subject: "Reçu de paiement - Lectorium Rosicrucianum Bénin",
+                        html: \`
+                            <h2 style="color: #b89047;">Reçu de paiement</h2>
+                            <p>Bonjour \${userPrenom || ''} \${userNom || ''},</p>
+                            <p>Nous vous confirmons la réception de votre paiement pour l'activité <strong>\${activity.title}</strong>.</p>
+                            <ul>
+                                <li><strong>Montant :</strong> \${payment_amount || activity.price_fcfa} FCFA</li>
+                                <li><strong>Référence MTN :</strong> \${payment_reference}</li>
+                                <li><strong>Bénéficiaire :</strong> Lectorium Rosicrucianum Bénin</li>
+                            </ul>
+                            <p>Merci pour votre participation.</p>
+                        \`
+                    });
+                } catch (err) {
+                    console.error("Erreur envoi reçu:", err);
+                }
             }
         }
 
         const dbRes = await db.query(
-            `INSERT INTO registrations (user_id, activity_id, selected_site, status, payment_status, payment_method, guest_info, child_info) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-            [userId, activity_id, selected_site, baseStatus, pmtStatus, payment_method, JSON.stringify(guest_info || null), JSON.stringify(child_info || null)]
+            \`INSERT INTO registrations (user_id, activity_id, selected_site, status, payment_status, payment_method, guest_info, child_info, payment_reference, payment_amount) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *\`,
+            [userId, activity_id, selected_site, baseStatus, pmtStatus, payment_method, JSON.stringify(guest_info || null), JSON.stringify(child_info || null), payment_reference || null, payment_amount || null]
         );
 
         res.status(201).json(dbRes.rows[0]);
