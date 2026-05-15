@@ -10,7 +10,7 @@ const Register = () => {
         nom: '', nom_jeune_fille: '', prenom: '', date_naissance: '', lieu_naissance: '',
         nationalite: '', adresse: '', email: '', telephone_whatsapp: '', telephone_autre: '',
         etat_civil: '', profession: '', aptitudes: '', nombre_enfants: 0, motivation_adhesion: '',
-        password: ''
+        password: '', receipt_preference: 'email'
     });
 
     const [error, setError] = useState('');
@@ -91,6 +91,27 @@ const Register = () => {
                             <input type="email" name="email" placeholder="Adresse email *" onChange={handleChange} required className="w-full bg-stone-50 border border-stone-200 text-stone-800 rounded-sm py-2 px-3 focus:outline-none focus:border-[#b89047] text-sm col-span-1 md:col-span-2" />
                             <input type="tel" name="telephone_whatsapp" placeholder="Numéro de téléphone WhatsApp *" onChange={handleChange} required className="w-full bg-stone-50 border border-stone-200 text-stone-800 rounded-sm py-2 px-3 focus:outline-none focus:border-[#b89047] text-sm" />
                             <input type="tel" name="telephone_autre" placeholder="Autre numéro de téléphone" onChange={handleChange} className="w-full bg-stone-50 border border-stone-200 text-stone-800 rounded-sm py-2 px-3 focus:outline-none focus:border-[#b89047] text-sm" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 className="text-lg font-serif text-[#b89047] border-b border-stone-100 pb-2 mb-4">Préférence de réception</h3>
+                        <p className="text-sm text-stone-500 mb-4">Comment souhaitez-vous recevoir vos reçus et confirmations ?</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <button 
+                                type="button"
+                                onClick={() => setFormData({ ...formData, receipt_preference: 'email' })}
+                                className={`flex items-center justify-center gap-3 p-4 border text-sm font-bold transition-all ${formData.receipt_preference === 'email' ? 'bg-[#b89047] text-white border-[#b89047] shadow-md' : 'bg-stone-50 text-stone-500 border-stone-200 hover:border-[#b89047]'}`}
+                            >
+                                📧 PAR EMAIL
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={() => setFormData({ ...formData, receipt_preference: 'whatsapp' })}
+                                className={`flex items-center justify-center gap-3 p-4 border text-sm font-bold transition-all ${formData.receipt_preference === 'whatsapp' ? 'bg-green-600 text-white border-green-600 shadow-md' : 'bg-stone-50 text-stone-500 border-stone-200 hover:border-green-600'}`}
+                            >
+                                💬 PAR WHATSAPP
+                            </button>
                         </div>
                     </div>
 
