@@ -31,7 +31,41 @@ db.query(`
     ALTER TABLE activities ADD COLUMN IF NOT EXISTS participation_amounts JSONB DEFAULT '[]';
     ALTER TABLE registrations ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255);
     ALTER TABLE registrations ADD COLUMN IF NOT EXISTS payment_amount INTEGER;
+    ALTER TABLE registrations ADD COLUMN IF NOT EXISTS receipt_preference VARCHAR(20) DEFAULT 'email';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS receipt_preference VARCHAR(20) DEFAULT 'email';
 `).catch(err => console.error("Auto-migration error:", err));
+
+// Helper function to send WhatsApp message via Meta API
+const sendWhatsAppMessage = async (to, templateName, components) => {
+    if (!process.env.WHATSAPP_TOKEN || !process.env.WHATSAPP_PHONE_NUMBER_ID) {
+        console.warn("WhatsApp API is not configured. Skipping message.");
+        return;
+    }
+
+    try {
+        const url = `https://graph.facebook.com/v17.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+        const data = {
+            messaging_product: "whatsapp",
+            to: to,
+            type: "template",
+            template: {
+                name: templateName,
+                language: { code: "fr" },
+                components: components
+            }
+        };
+
+        await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        console.log(`WhatsApp message sent to ${to}`);
+    } catch (err) {
+        console.error("Error sending WhatsApp message:", err.response?.data || err.message);
+    }
+};
 
 // Helper function to notify all admins
 const notifyAdmins = async (subject, htmlContent, excludeUserId = null) => {
@@ -42,7 +76,7 @@ const notifyAdmins = async (subject, htmlContent, excludeUserId = null) => {
     }
 
     try {
-        const admins = await db.query("SELECT email FROM users WHERE role IN ('Admin', 'SuperAdmin')");
+        const admins = await db.query("SELECT email, id FROM users WHERE role IN ('Admin', 'SuperAdmin')");
         for (const admin of admins.rows) {
             if (excludeUserId && admin.id === excludeUserId) continue;
             await transporter.sendMail({
@@ -129,7 +163,18 @@ app.post('/api/register', async (req, res) => {
             ]
         );
 
-        if (process.env.SMTP_USER) {
+        if (req.body.receipt_preference === 'whatsapp' && telephone_whatsapp) {
+            const cleanPhone = telephone_whatsapp.replace(/\D/g, '');
+            // Template: 'membership_request_received'
+            await sendWhatsAppMessage(cleanPhone, 'membership_request_received', [
+                {
+                    type: "body",
+                    parameters: [
+                        { type: "text", text: `${prenom} ${nom}` }
+                    ]
+                }
+            ]);
+        } else if (process.env.SMTP_USER) {
             try {
                 await transporter.sendMail({
                     from: fromEmail,
@@ -478,26 +523,44 @@ app.put('/api/admin/users/:id/status', auth(['Admin', 'SuperAdmin']), async (req
                 }
 
                 try {
-                    await transporter.sendMail({
-                        from: fromEmail,
-                        to: targetUser.email,
-                        subject: "Bienvenue au Lectorium Rosicrucianum - Votre adhésion est confirmée",
-                        html: `
-                            <h2 style="color: #b89047;">Adhésion Validée !</h2>
-                            <p>Bonjour ${targetUser.prenom} ${targetUser.nom},</p>
-                            <p>Nous avons le plaisir de vous annoncer que votre demande d'adhésion a été acceptée.</p>
-                            <p>Voici votre <strong>Numéro Matricule</strong> qui vous servira désormais d'identifiant unique pour vous connecter :</p>
-                            <div style="font-size: 24px; font-weight: bold; background: #fdfbf7; padding: 15px; border: 1px solid #b89047; display: inline-block; margin: 10px 0; color: #b89047;">
-                                ${matricule}
-                            </div>
-                            <p>Vous n'avez plus besoin d'email ni de mot de passe pour accéder à votre espace membre, utilisez simplement ce matricule.</p>
-                            ${activitiesHtml}
-                            <p style="margin-top: 20px;">
-                                <a href="https://lectorium-application.vercel.app/login" style="background-color: #b89047; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Accéder à mon espace</a>
-                            </p>
-                        `
-                    });
-                } catch (mailErr) { console.error("Erreur email d'approbation", mailErr); }
+                    const userPref = await db.query('SELECT receipt_preference, telephone_whatsapp FROM users WHERE id = $1', [req.params.id]);
+                    const { receipt_preference, telephone_whatsapp } = userPref.rows[0];
+
+                    if (receipt_preference === 'whatsapp' && telephone_whatsapp) {
+                        const cleanPhone = telephone_whatsapp.replace(/\D/g, '');
+                        // Template: 'membership_approved'
+                        // Components: 1: Name, 2: Matricule
+                        await sendWhatsAppMessage(cleanPhone, 'membership_approved', [
+                            {
+                                type: "body",
+                                parameters: [
+                                    { type: "text", text: `${targetUser.prenom} ${targetUser.nom}` },
+                                    { type: "text", text: matricule }
+                                ]
+                            }
+                        ]);
+                    } else if (process.env.SMTP_USER) {
+                        await transporter.sendMail({
+                            from: fromEmail,
+                            to: targetUser.email,
+                            subject: "Bienvenue au Lectorium Rosicrucianum - Votre adhésion est confirmée",
+                            html: `
+                                <h2 style="color: #b89047;">Adhésion Validée !</h2>
+                                <p>Bonjour ${targetUser.prenom} ${targetUser.nom},</p>
+                                <p>Nous avons le plaisir de vous annoncer que votre demande d'adhésion a été acceptée.</p>
+                                <p>Voici votre <strong>Numéro Matricule</strong> qui vous servira désormais d'identifiant unique pour vous connecter :</p>
+                                <div style="font-size: 24px; font-weight: bold; background: #fdfbf7; padding: 15px; border: 1px solid #b89047; display: inline-block; margin: 10px 0; color: #b89047;">
+                                    ${matricule}
+                                </div>
+                                <p>Vous n'avez plus besoin d'email ni de mot de passe pour accéder à votre espace membre, utilisez simplement ce matricule.</p>
+                                ${activitiesHtml}
+                                <p style="margin-top: 20px;">
+                                    <a href="https://lectorium-application.vercel.app/login" style="background-color: #b89047; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Accéder à mon espace</a>
+                                </p>
+                            `
+                        });
+                    }
+                } catch (mailErr) { console.error("Erreur notification d'approbation", mailErr); }
             }
         } else {
             await db.query('UPDATE users SET status = $1 WHERE id = $2', [status, req.params.id]);
@@ -757,23 +820,46 @@ app.post('/api/register-activity', async (req, res) => {
             pmtStatus = 'paid';
             
             // Envoyer reçu de paiement
-            if (process.env.SMTP_USER && userEmail) {
+            if (req.body.receipt_preference === 'whatsapp') {
+                const uQ = await db.query('SELECT telephone_whatsapp, nom, prenom FROM users WHERE id = $1', [userId]);
+                const user = uQ.rows[0];
+                const phone = user?.telephone_whatsapp || guest_info?.whatsapp;
+                
+                if (phone) {
+                    // Normalize phone number (should be in format like 229XXXXXXXX)
+                    const cleanPhone = phone.replace(/\D/g, '');
+                    
+                    // We use a template named 'payment_receipt' (needs to be created in Meta dashboard)
+                    // Components order: 1: Name, 2: Activity Title, 3: Amount, 4: Reference
+                    await sendWhatsAppMessage(cleanPhone, 'payment_receipt', [
+                        {
+                            type: "body",
+                            parameters: [
+                                { type: "text", text: `${userPrenom || ''} ${userNom || ''}` },
+                                { type: "text", text: activity.title },
+                                { type: "text", text: `${payment_amount || activity.price_fcfa} FCFA` },
+                                { type: "text", text: payment_reference }
+                            ]
+                        }
+                    ]);
+                }
+            } else if (process.env.SMTP_USER && userEmail) {
                 try {
                     await transporter.sendMail({
                         from: fromEmail,
                         to: userEmail,
                         subject: "Reçu de paiement - Lectorium Rosicrucianum Bénin",
-                        html: \`
+                        html: `
                             <h2 style="color: #b89047;">Reçu de paiement</h2>
-                            <p>Bonjour \${userPrenom || ''} \${userNom || ''},</p>
-                            <p>Nous vous confirmons la réception de votre paiement pour l'activité <strong>\${activity.title}</strong>.</p>
+                            <p>Bonjour ${userPrenom || ''} ${userNom || ''},</p>
+                            <p>Nous vous confirmons la réception de votre paiement pour l'activité <strong>${activity.title}</strong>.</p>
                             <ul>
-                                <li><strong>Montant :</strong> \${payment_amount || activity.price_fcfa} FCFA</li>
-                                <li><strong>Référence MTN :</strong> \${payment_reference}</li>
+                                <li><strong>Montant :</strong> ${payment_amount || activity.price_fcfa} FCFA</li>
+                                <li><strong>Référence MTN :</strong> ${payment_reference}</li>
                                 <li><strong>Bénéficiaire :</strong> Lectorium Rosicrucianum Bénin</li>
                             </ul>
                             <p>Merci pour votre participation.</p>
-                        \`
+                        `
                     });
                 } catch (err) {
                     console.error("Erreur envoi reçu:", err);
@@ -782,9 +868,9 @@ app.post('/api/register-activity', async (req, res) => {
         }
 
         const dbRes = await db.query(
-            \`INSERT INTO registrations (user_id, activity_id, selected_site, status, payment_status, payment_method, guest_info, child_info, payment_reference, payment_amount) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *\`,
-            [userId, activity_id, selected_site, baseStatus, pmtStatus, payment_method, JSON.stringify(guest_info || null), JSON.stringify(child_info || null), payment_reference || null, payment_amount || null]
+            `INSERT INTO registrations (user_id, activity_id, selected_site, status, payment_status, payment_method, guest_info, child_info, payment_reference, payment_amount, receipt_preference) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+            [userId, activity_id, selected_site, baseStatus, pmtStatus, payment_method, JSON.stringify(guest_info || null), JSON.stringify(child_info || null), payment_reference || null, payment_amount || null, req.body.receipt_preference || 'email']
         );
 
         res.status(201).json(dbRes.rows[0]);
