@@ -62,6 +62,8 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
         }).format(new Date(dateStr));
     };
 
+    const [receiptPreference, setReceiptPreference] = useState('email');
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (event.sites && event.sites.length > 0 && !selectedSite) { setError("Veuillez sélectionner un site de participation."); return; }
@@ -86,7 +88,8 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
             motivation: regType === 'self' ? 'Inscription directe.' : `Inscription ${regType}.`,
             experience: '',
             attentes: '',
-            payment_method: paymentMethod
+            payment_method: paymentMethod,
+            receipt_preference: receiptPreference
         };
 
         if (paymentMethod === 'momo') {
@@ -243,17 +246,42 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
 
                     {/* C. Payment */}
                     {isPayant && (
-                        <div className="bg-stone-50 p-4 border border-stone-200 rounded-sm">
-                            <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-3">Méthode de Paiement <span className="text-red-500">*</span></label>
-                            <div className="flex flex-col gap-3">
-                                <label className="flex items-center gap-3 cursor-pointer p-3 border border-stone-200 hover:border-[#b89047] bg-white transition-colors">
-                                    <input type="radio" name="payment" value="physical" checked={paymentMethod === 'physical'} onChange={e => setPaymentMethod(e.target.value)} />
-                                    <span className="text-lg">💵</span> <span className="text-xs font-bold">Paiement en espèces (sur place)</span>
-                                </label>
-                                <label className="flex items-center gap-3 cursor-pointer p-3 border border-stone-200 hover:border-[#b89047] bg-white transition-colors">
-                                    <input type="radio" name="payment" value="momo" checked={paymentMethod === 'momo'} onChange={e => setPaymentMethod(e.target.value)} />
-                                    <span className="text-lg">📱</span> <span className="text-xs font-bold text-yellow-600">Paiement par MTN Mobile Money</span>
-                                </label>
+                        <div className="bg-stone-50 p-4 border border-stone-200 rounded-sm space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-3">Méthode de Paiement <span className="text-red-500">*</span></label>
+                                <div className="flex flex-col gap-3">
+                                    <label className="flex items-center gap-3 cursor-pointer p-3 border border-stone-200 hover:border-[#b89047] bg-white transition-colors">
+                                        <input type="radio" name="payment" value="physical" checked={paymentMethod === 'physical'} onChange={e => setPaymentMethod(e.target.value)} />
+                                        <span className="text-lg">💵</span> <span className="text-xs font-bold">Paiement en espèces (sur place)</span>
+                                    </label>
+                                    <label className="flex items-center gap-3 cursor-pointer p-3 border border-stone-200 hover:border-[#b89047] bg-white transition-colors">
+                                        <input type="radio" name="payment" value="momo" checked={paymentMethod === 'momo'} onChange={e => setPaymentMethod(e.target.value)} />
+                                        <span className="text-lg">📱</span> <span className="text-xs font-bold text-yellow-600">Paiement par MTN Mobile Money</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-stone-200">
+                                <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-3">Recevoir mon reçu par :</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setReceiptPreference('email')}
+                                        className={`flex items-center justify-center gap-2 p-3 border text-[10px] font-bold transition-all ${receiptPreference === 'email' ? 'bg-[#b89047] text-white border-[#b89047] shadow-md' : 'bg-white text-stone-500 border-stone-200 hover:border-[#b89047]'}`}
+                                    >
+                                        📧 EMAIL
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setReceiptPreference('whatsapp')}
+                                        className={`flex items-center justify-center gap-2 p-3 border text-[10px] font-bold transition-all ${receiptPreference === 'whatsapp' ? 'bg-green-600 text-white border-green-600 shadow-md' : 'bg-white text-stone-500 border-stone-200 hover:border-green-600'}`}
+                                    >
+                                        💬 WHATSAPP
+                                    </button>
+                                </div>
+                                <p className="text-[10px] text-stone-400 mt-2 italic">
+                                    {receiptPreference === 'whatsapp' ? "Le reçu sera envoyé sur le numéro WhatsApp de votre profil." : "Le reçu sera envoyé sur l'adresse email de votre profil."}
+                                </p>
                             </div>
                             
                             {paymentMethod === 'momo' && (
