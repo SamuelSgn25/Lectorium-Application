@@ -484,7 +484,7 @@ app.post('/api/users', auth(['Admin', 'SuperAdmin']), async (req, res) => {
 // Validation Adhesion
 app.put('/api/admin/users/:id/status', auth(['Admin', 'SuperAdmin']), async (req, res) => {
     try {
-        const { status, matricule } = req.body;
+        const { status, matricule, paymentStatus, deliveryMethod } = req.body;
 
         // Vérifier la hiérarchie pour la validation
         const targetUserQuery = await db.query('SELECT role, prenom, nom, email FROM users WHERE id = $1', [req.params.id]);
@@ -564,6 +564,46 @@ app.put('/api/admin/users/:id/status', auth(['Admin', 'SuperAdmin']), async (req
             }
         } else {
             await db.query('UPDATE users SET status = $1 WHERE id = $2', [status, req.params.id]);
+        }
+
+        if (paymentStatus === 'paid' || paymentStatus === 'pending') {
+            const currentUser = await db.query('SELECT email, prenom, nom, telephone_whatsapp, receipt_preference FROM users WHERE id = $1', [req.params.id]);
+            const user = currentUser.rows[0];
+            if (user) {
+                const selectedMethod = deliveryMethod || user.receipt_preference || (user.telephone_whatsapp ? 'whatsapp' : 'email');
+                await db.query('UPDATE users SET receipt_preference = $1, payment_status = $2 WHERE id = $3', [selectedMethod, paymentStatus, req.params.id]);
+
+                if (paymentStatus === 'paid') {
+                    try {
+                        if (selectedMethod === 'whatsapp' && user.telephone_whatsapp) {
+                            const cleanPhone = user.telephone_whatsapp.replace(/\D/g, '');
+                            await sendWhatsAppMessage(cleanPhone, 'payment_receipt', [
+                                {
+                                    type: "body",
+                                    parameters: [
+                                        { type: "text", text: `${user.prenom} ${user.nom}` }
+                                    ]
+                                }
+                            ]);
+                        } else if (process.env.SMTP_USER && user.email) {
+                            await transporter.sendMail({
+                                from: fromEmail,
+                                to: user.email,
+                                subject: 'Votre reçu de paiement a été validé',
+                                html: `
+                                    <h2 style="color: #b89047;">Reçu de paiement validé</h2>
+                                    <p>Bonjour ${user.prenom} ${user.nom},</p>
+                                    <p>Votre paiement a été validé avec succès. Vous trouverez ci-dessous un accusé de réception.</p>
+                                    <p><strong>Statut :</strong> payé</p>
+                                    <p>Merci pour votre engagement au Lectorium.</p>
+                                `
+                            });
+                        }
+                    } catch (receiptErr) {
+                        console.error('Erreur envoi reçu de paiement', receiptErr);
+                    }
+                }
+            }
         }
 
         res.json({ message: "Statut mis à jour" });

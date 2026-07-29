@@ -95,6 +95,20 @@ const User = sequelize.define('User', {
     type: DataTypes.INTEGER,
     defaultValue: 1
   },
+  paymentStatus: {
+    type: DataTypes.ENUM('pending', 'paid'),
+    defaultValue: 'pending',
+    field: 'payment_status'
+  },
+  paymentValidatedAt: {
+    type: DataTypes.DATE,
+    field: 'payment_validated_at'
+  },
+  receiptPreference: {
+    type: DataTypes.ENUM('email', 'whatsapp'),
+    defaultValue: 'email',
+    field: 'receipt_preference'
+  },
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true,

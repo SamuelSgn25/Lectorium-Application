@@ -1,6 +1,98 @@
 const { validationResult } = require('express-validator');
 const { Op } = require('sequelize');
+const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
 const User = require('../models/user.model');
+
+const createTransporter = () => {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+};
+
+const transporter = createTransporter();
+
+const sendReceiptEmail = async (user) => {
+  if (!transporter) {
+    throw new Error('SMTP not configured');
+  }
+
+  const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+  const fromName = process.env.SMTP_FROM_NAME || 'Lectorium';
+
+  await transporter.sendMail({
+    from: `${fromName} <${fromEmail}>`,
+    to: user.email,
+    subject: 'Votre reçu de paiement a été validé',
+    html: `
+      <div style="font-family: Arial, sans-serif;">
+        <h2>Reçu de paiement validé</h2>
+        <p>Bonjour ${user.firstName || 'cher membre'},</p>
+        <p>Votre paiement a été validé avec succès. Vous trouverez ci-dessous un accusé de réception.</p>
+        <p><strong>Statut :</strong> payé</p>
+        <p>Merci pour votre engagement au Lectorium.</p>
+      </div>
+    `,
+  });
+};
+
+const sendReceiptWhatsApp = async (user) => {
+  if (!process.env.WHATSAPP_TOKEN || !process.env.WHATSAPP_PHONE_NUMBER_ID) {
+    throw new Error('WhatsApp API not configured');
+  }
+
+  const cleanPhone = (user.whatsappNumber || '').replace(/\D/g, '');
+  if (!cleanPhone) {
+    throw new Error('No WhatsApp number');
+  }
+
+  const response = await fetch(`https://graph.facebook.com/v17.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: cleanPhone,
+      type: 'text',
+      text: {
+        body: `Bonjour ${user.firstName || 'cher membre'} 👋. Votre paiement a été validé et votre reçu a bien été enregistré.`,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText);
+  }
+};
+
+const sendReceipt = async (user, deliveryMethod) => {
+  const preferredMethod = deliveryMethod || user.receiptPreference || (user.whatsappNumber ? 'whatsapp' : 'email');
+
+  if (preferredMethod === 'whatsapp') {
+    try {
+      await sendReceiptWhatsApp(user);
+      return { method: 'whatsapp' };
+    } catch (error) {
+      console.warn('Échec de l’envoi du reçu par WhatsApp, fallback vers email:', error.message);
+    }
+  }
+
+  await sendReceiptEmail(user);
+  return { method: 'email' };
+};
 
 // Récupérer le profil de l'utilisateur connecté
 exports.getUserProfile = async (req, res) => {
@@ -200,6 +292,56 @@ exports.deleteUser = async (req, res) => {
     res.json({ message: 'Utilisateur supprimé avec succès' });
   } catch (error) {
     console.error('Erreur lors de la suppression de l\'utilisateur:', error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+};
+
+// Valider le paiement d'un membre (admin uniquement)
+exports.validatePaymentStatus = async (req, res) => {
+  try {
+    const { paymentStatus = 'paid', deliveryMethod } = req.body;
+
+    if (!['pending', 'paid'].includes(paymentStatus)) {
+      return res.status(400).json({ message: 'Statut de paiement invalide' });
+    }
+
+    const user = await User.findByPk(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
+
+    if (user.role === 'super_admin' && req.user.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Non autorisé à modifier un super administrateur' });
+    }
+
+    const preferredMethod = deliveryMethod || user.receiptPreference || (user.whatsappNumber ? 'whatsapp' : 'email');
+
+    await user.update({
+      paymentStatus,
+      paymentValidatedAt: new Date(),
+      receiptPreference: preferredMethod,
+    });
+
+    let receiptDelivery = { method: 'email' };
+
+    try {
+      receiptDelivery = await sendReceipt(user, preferredMethod);
+    } catch (error) {
+      console.error('Erreur lors de l’envoi du reçu:', error);
+    }
+
+    const updatedUser = await User.findByPk(user.id, {
+      attributes: { exclude: ['password'] }
+    });
+
+    res.json({
+      message: 'Le statut payé a été validé avec succès',
+      user: updatedUser,
+      receiptDelivery,
+    });
+  } catch (error) {
+    console.error('Erreur lors de la validation du paiement:', error);
     res.status(500).json({ message: 'Erreur serveur' });
   }
 };

@@ -42,6 +42,11 @@ router.get('/', userController.getAllUsers);
 router.get('/:id', validateId, userController.getUserById);
 router.put('/:id', [...validateId, ...validateUpdateUser], userController.updateUser);
 router.delete('/:id', validateId, userController.deleteUser);
+router.patch('/:id/validate-payment', [
+  ...validateId,
+  body('paymentStatus').optional().isIn(['pending', 'paid']).withMessage('Statut de paiement invalide'),
+  body('deliveryMethod').optional().isIn(['email', 'whatsapp']).withMessage('Mode de réception invalide')
+], userController.validatePaymentStatus);
 router.patch('/:id/toggle-status', validateId, userController.toggleUserStatus);
 
 // Routes réservées aux super administrateurs

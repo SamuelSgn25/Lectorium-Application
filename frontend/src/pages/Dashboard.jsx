@@ -150,6 +150,31 @@ const Dashboard = () => {
         } catch (err) { console.error(err); }
     };
 
+    const validateMemberPayment = async (id, user) => {
+        try {
+            const preferredMethod = window.prompt('Mode de réception du reçu ? (email/whatsapp)', user?.receipt_preference || (user?.telephone_whatsapp ? 'whatsapp' : 'email'));
+            if (!preferredMethod) return;
+            if (!['email', 'whatsapp'].includes(preferredMethod.toLowerCase())) {
+                alert('Le mode doit être email ou whatsapp');
+                return;
+            }
+
+            const payload = {
+                status: 'approved',
+                paymentStatus: 'paid',
+                deliveryMethod: preferredMethod.toLowerCase(),
+                matricule: user?.matricule || ''
+            };
+
+            await axios.put(`/api/admin/users/${id}/status`, payload, { headers });
+            await fetchData();
+            alert('Paiement validé et reçu envoyé.');
+        } catch (err) {
+            console.error(err);
+            alert(err.response?.data?.message || 'Erreur lors de la validation du paiement');
+        }
+    };
+
     const updateUserAdminFields = async (id, fields) => {
         try {
             await axios.put(`/api/admin/users/${id}/role-grade`, fields, { headers });
@@ -757,6 +782,9 @@ const Dashboard = () => {
                                                                     <button onClick={() => updateUserStatus(u.id, 'approved')} className="text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-1 flex-1">Accepter</button>
                                                                     <button onClick={() => updateUserStatus(u.id, 'rejected')} className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-1 flex-1">Refuser</button>
                                                                 </div>
+                                                            )}
+                                                            {(u.payment_status === 'pending' || u.payment_status === 'paid') && (
+                                                                <button onClick={() => validateMemberPayment(u.id, u)} className="text-[10px] font-bold text-[#b89047] bg-[#fdf6ea] border border-[#e5c07c] px-2 py-1">Valider paiement</button>
                                                             )}
                                                             <div className="flex gap-2 justify-center">
                                                                 <button onClick={() => setSelectedUserDetail(u)} className="p-1.5 text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100" title="Dossier Complet"><Eye size={16} /></button>
