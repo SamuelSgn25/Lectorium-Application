@@ -10,7 +10,7 @@ export default defineConfig({
   ],
   server: {
     proxy: {
-      '/api': 'http://localhost:5000'
+      '/api': process.env.BACKEND_URL || 'http://localhost:5000'
     }
   }
 })
