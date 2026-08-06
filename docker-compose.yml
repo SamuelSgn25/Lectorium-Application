@@ -13,6 +13,8 @@ services:
       - ./backend/init.sql:/docker-entrypoint-initdb.d/01_init.sql
       - ./backend/migrate_columns.sql:/docker-entrypoint-initdb.d/02_migrate_columns.sql
       - ./backend/migration_payment.sql:/docker-entrypoint-initdb.d/03_migration_payment.sql
+      - ./backend/migration_missing_columns.sql:/docker-entrypoint-initdb.d/04_migration_missing_columns.sql
+      - ./backend/migration_payment_transactions.sql:/docker-entrypoint-initdb.d/05_migration_payment_transactions.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lrb_user -d lrb_db"]
       interval: 5s

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CheckCircle, X, User, Users as UsersIcon, Baby, MapPin, Smartphone, CreditCard, ShieldCheck } from 'lucide-react';
 
 const ApplicationForm = ({ event, onClose, onSubmit }) => {
@@ -13,17 +13,55 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
     const [cond1, setCond1] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [paymentReference, setPaymentReference] = useState('');
+    const [momoPhone, setMomoPhone] = useState('');
+    const [pollingState, setPollingState] = useState('idle'); // idle | waiting | success | failed | timeout
+    const [mtnReference, setMtnReference] = useState(null);
+    const pollTimerRef = useRef(null);
 
     const isPayant = event.is_paid || event.price_fcfa > 0;
     const [paymentAmount, setPaymentAmount] = useState('');
 
     useEffect(() => {
-        // Auto-select site if only one is available
-        if (event.sites && event.sites.length === 1) {
-            setSelectedSite(event.sites[0]);
-        }
+        if (event.sites && event.sites.length === 1) setSelectedSite(event.sites[0]);
     }, [event.sites]);
+
+    useEffect(() => {
+        if (pollingState !== 'waiting' || !mtnReference) return;
+
+        let attempts = 0;
+        const MAX_ATTEMPTS = 30;
+
+        const poll = async () => {
+            attempts++;
+            if (attempts > MAX_ATTEMPTS) {
+                setPollingState('timeout');
+                setLoading(false);
+                return;
+            }
+            try {
+                const res = await fetch(`/api/payments/status/${mtnReference}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                });
+                const data = await res.json();
+                if (data.status === 'completed') {
+                    setPollingState('success');
+                    setLoading(false);
+                    pollTimerRef.current = setTimeout(() => onClose(), 3500);
+                } else if (data.status === 'failed') {
+                    setPollingState('failed');
+                    setError(data.reason || 'Paiement refusé ou annulé.');
+                    setLoading(false);
+                } else {
+                    pollTimerRef.current = setTimeout(poll, 3000);
+                }
+            } catch {
+                pollTimerRef.current = setTimeout(poll, 3000);
+            }
+        };
+
+        pollTimerRef.current = setTimeout(poll, 3000);
+        return () => clearTimeout(pollTimerRef.current);
+    }, [pollingState, mtnReference]);
 
     const handleSearchMember = async (mat, target = 'other_member') => {
         if (!mat) return;
@@ -73,8 +111,9 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
         if (regType === 'other_member' && !foundMember) { setError("Veuillez d'abord rechercher et valider un membre par son matricule."); return; }
         if (regType === 'child' && (!childData.nom || !childData.prenom)) { setError("Veuillez remplir le nom et le prénom de l'enfant."); return; }
         if (paymentMethod === 'momo') {
-            if (!paymentReference || paymentReference.length < 5) {
-                setError("Veuillez entrer la référence de votre transaction MTN.");
+            const cleanPhone = momoPhone.replace(/\s+/g, '');
+            if (!cleanPhone || cleanPhone.length < 8) {
+                setError("Veuillez entrer votre numéro MTN Mobile Money (format international, ex: 22997000000).");
                 return;
             }
         }
@@ -92,17 +131,48 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
             receipt_preference: receiptPreference
         };
 
-        if (paymentMethod === 'momo') {
-            payload.payment_reference = paymentReference;
-            payload.payment_amount = paymentAmount || (event.participation_amounts && event.participation_amounts.length > 0 ? event.participation_amounts[0].amount : event.price_fcfa);
-        }
-
         if (regType === 'other_member') {
             payload.register_by_matricule = otherMemberMatricule;
         }
         if (regType === 'child') {
             payload.child_info = childData;
             if (childData.matricule) payload.register_by_matricule = childData.matricule;
+        }
+
+        if (paymentMethod === 'momo') {
+            setLoading(true);
+            try {
+                const initPayload = {
+                    activity_id: event.id,
+                    selected_site: selectedSite,
+                    phone_number: momoPhone.replace(/\s+/g, ''),
+                    amount: paymentAmount || (event.participation_amounts?.length > 0 ? event.participation_amounts[0].amount : event.price_fcfa),
+                    receipt_preference: receiptPreference,
+                    motivation: payload.motivation,
+                    register_by_matricule: payload.register_by_matricule,
+                    child_info: payload.child_info,
+                };
+                const res = await fetch('/api/payments/initiate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    },
+                    body: JSON.stringify(initPayload),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    setError(data.message || "Échec de l'initiation du paiement MTN.");
+                    setLoading(false);
+                    return;
+                }
+                setMtnReference(data.mtn_reference);
+                setPollingState('waiting');
+            } catch (err) {
+                setError('Erreur réseau. Veuillez réessayer.');
+                setLoading(false);
+            }
+            return;
         }
 
         await onSubmit(payload);
@@ -285,36 +355,49 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
                             </div>
                             
                             {paymentMethod === 'momo' && (
-                                <div className="mt-4 space-y-4 border-t border-stone-200 pt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                    <div className="p-3 bg-yellow-50 border border-yellow-100 text-yellow-800 text-xs rounded-sm mb-4">
-                                        Veuillez effectuer un transfert MTN Mobile Money au profit de <strong>Lectorium Rosicrucianum Bénin</strong>.
-                                        Une fois le transfert effectué, veuillez renseigner la <strong>Référence de transaction</strong> figurant dans le SMS de confirmation MTN.
+                                <div className="mt-4 space-y-4 border-t border-stone-200 pt-4">
+                                    <div className="p-3 bg-yellow-50 border border-yellow-200 text-yellow-800 text-xs rounded-sm">
+                                        <strong>Comment ça marche :</strong> En validant l'inscription, vous recevrez une notification USSD sur votre téléphone MTN. Confirmez le paiement directement sur votre téléphone.
                                     </div>
                                     {event.participation_amounts && event.participation_amounts.length > 0 && (
-                                        <div className="relative mb-4">
-                                            <label className="block text-[10px] font-bold text-stone-600 uppercase mb-2">Montant payé (FCFA) *</label>
-                                            <select 
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-stone-600 uppercase mb-2">Montant à payer *</label>
+                                            <select
                                                 value={paymentAmount}
                                                 onChange={e => setPaymentAmount(e.target.value)}
-                                                className="w-full p-3 text-sm border border-stone-200 outline-none focus:border-[#b89047] rounded-sm bg-white"
+                                                className="w-full p-3 text-sm border border-stone-200 outline-none focus:border-[#b89047] bg-white"
                                             >
                                                 <option value="">Sélectionnez le montant correspondant</option>
                                                 {event.participation_amounts.map((amt, idx) => (
-                                                    <option key={idx} value={amt.amount}>{amt.label} - {amt.amount} FCFA</option>
+                                                    <option key={idx} value={amt.amount}>{amt.label} — {amt.amount} FCFA</option>
                                                 ))}
                                             </select>
                                         </div>
                                     )}
-                                    <div className="relative">
-                                        <label className="block text-[10px] font-bold text-stone-600 uppercase mb-2">Référence de Transaction MTN *</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Ex: 2314567890" 
-                                            value={paymentReference}
-                                            onChange={e => setPaymentReference(e.target.value)}
-                                            className="w-full p-3 text-sm border border-stone-200 outline-none focus:border-[#b89047] rounded-sm bg-white"
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-stone-600 uppercase mb-2">Numéro MTN Mobile Money *</label>
+                                        <input
+                                            type="tel"
+                                            placeholder="Ex: 22997000000 (sans le +)"
+                                            value={momoPhone}
+                                            onChange={e => setMomoPhone(e.target.value)}
+                                            className="w-full p-3 text-sm border border-stone-200 outline-none focus:border-[#b89047] bg-white"
                                         />
+                                        <p className="text-[10px] text-stone-400 mt-1">Format international sans le + (ex: 22997000000 pour le Bénin)</p>
                                     </div>
+                                </div>
+                            )}
+
+                            {pollingState === 'failed' && (
+                                <div className="mt-3 p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
+                                    ❌ {error || 'Paiement refusé.'}
+                                    <button type="button" onClick={() => { setPollingState('idle'); setError(''); setMtnReference(null); }} className="ml-3 underline">Réessayer</button>
+                                </div>
+                            )}
+                            {pollingState === 'timeout' && (
+                                <div className="mt-3 p-3 bg-orange-50 border border-orange-200 text-orange-700 text-xs font-bold">
+                                    ⏱ Délai dépassé (90s). Vérifiez votre téléphone et réessayez.
+                                    <button type="button" onClick={() => { setPollingState('idle'); setMtnReference(null); }} className="ml-3 underline">Réessayer</button>
                                 </div>
                             )}
                         </div>
@@ -338,11 +421,38 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
                         <button type="button" onClick={onClose} className="px-6 py-2 border border-stone-300 text-stone-600 hover:bg-stone-50 transition-colors uppercase tracking-widest text-[10px] font-bold">
                             Annuler
                         </button>
-                        <button type="submit" disabled={loading} className="px-8 py-2 bg-[#b89047] text-white hover:bg-[#a37b3b] uppercase tracking-widest text-[10px] font-bold transition-all shadow-lg hover:shadow-xl disabled:opacity-50">
-                            {loading ? "Envoi..." : "Valider l'inscription"}
+                        <button type="submit" disabled={loading || pollingState === 'waiting'} className="px-8 py-2 bg-[#b89047] text-white hover:bg-[#a37b3b] uppercase tracking-widest text-[10px] font-bold transition-all shadow-lg hover:shadow-xl disabled:opacity-50">
+                            {loading && pollingState !== 'waiting' ? 'Envoi...' : pollingState === 'waiting' ? 'En cours...' : paymentMethod === 'momo' ? 'Payer par MTN MoMo' : "Valider l'inscription"}
                         </button>
                     </div>
                 </form>
+
+                {/* Polling overlay — inside the relative modal div */}
+                {pollingState === 'waiting' && (
+                    <div className="absolute inset-0 z-10 bg-white/95 flex flex-col items-center justify-center gap-6 p-8 text-center rounded-sm">
+                        <div className="w-16 h-16 border-4 border-[#b89047] border-t-transparent rounded-full animate-spin"></div>
+                        <div>
+                            <h3 className="font-serif text-xl text-stone-800 mb-2">En attente de votre validation</h3>
+                            <p className="text-sm text-stone-600 max-w-xs">
+                                Une notification USSD a été envoyée sur le numéro <strong className="text-[#b89047]">{momoPhone}</strong>.
+                            </p>
+                            <p className="text-xs text-stone-400 mt-2">Validez le paiement sur votre téléphone MTN MoMo...</p>
+                        </div>
+                        <button type="button" onClick={() => { setPollingState('idle'); setLoading(false); clearTimeout(pollTimerRef.current); }} className="text-xs text-stone-400 underline">Annuler</button>
+                    </div>
+                )}
+
+                {pollingState === 'success' && (
+                    <div className="absolute inset-0 z-10 bg-white/95 flex flex-col items-center justify-center gap-6 p-8 text-center rounded-sm">
+                        <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+                            <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                        </div>
+                        <div>
+                            <h3 className="font-serif text-xl text-stone-800 mb-2">Paiement confirmé !</h3>
+                            <p className="text-sm text-stone-600">Votre inscription et votre paiement ont bien été enregistrés. Un reçu vous a été envoyé.</p>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

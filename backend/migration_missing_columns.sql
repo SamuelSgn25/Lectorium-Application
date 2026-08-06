@@ -1,0 +1,2 @@
+ALTER TABLE registrations ADD COLUMN IF NOT EXISTS selected_site VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'pending';
