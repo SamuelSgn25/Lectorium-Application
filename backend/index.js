@@ -20,6 +20,8 @@ const fromEmail = `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAI
 
 
 const db = require('./db');
+const { requestToPay, getTransactionStatus } = require('./services/mtnMomoService');
+const { randomUUID } = require('crypto');
 const app = express();
 
 app.use(cors());
@@ -32,8 +34,30 @@ db.query(`
     ALTER TABLE registrations ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255);
     ALTER TABLE registrations ADD COLUMN IF NOT EXISTS payment_amount INTEGER;
     ALTER TABLE registrations ADD COLUMN IF NOT EXISTS receipt_preference VARCHAR(20) DEFAULT 'email';
+    ALTER TABLE registrations ADD COLUMN IF NOT EXISTS selected_site VARCHAR(255);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS receipt_preference VARCHAR(20) DEFAULT 'email';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'pending';
 `).catch(err => console.error("Auto-migration error:", err));
+
+db.query(`
+    CREATE TABLE IF NOT EXISTS payment_transactions (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        registration_id UUID REFERENCES registrations(id) ON DELETE SET NULL,
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        amount INTEGER NOT NULL,
+        phone_number VARCHAR(30) NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending',
+        mtn_reference UUID UNIQUE NOT NULL,
+        mtn_financial_transaction_id VARCHAR(255),
+        payer_message TEXT,
+        error_message TEXT,
+        callback_received_at TIMESTAMP,
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_payment_txn_mtn_ref ON payment_transactions(mtn_reference);
+    CREATE INDEX IF NOT EXISTS idx_payment_txn_registration ON payment_transactions(registration_id);
+`).catch(err => console.error("Auto-migration payment_transactions error:", err));
 
 // Helper function to send WhatsApp message via Meta API
 const sendWhatsAppMessage = async (to, templateName, components) => {
@@ -852,59 +876,8 @@ app.post('/api/register-activity', async (req, res) => {
         let isActPaid = activity.is_paid || activity.price_fcfa > 0;
         let pmtStatus = (!isActPaid) ? 'paid' : (payment_method === 'physical' ? 'physical' : 'pending');
 
-        if (payment_method === 'momo' && payment_reference) {
-            // Mocking MTN verification
-            if (payment_reference.length < 5) {
-                return res.status(400).json({ message: "Référence MTN invalide." });
-            }
-            pmtStatus = 'paid';
-            
-            // Envoyer reçu de paiement
-            if (req.body.receipt_preference === 'whatsapp') {
-                const uQ = await db.query('SELECT telephone_whatsapp, nom, prenom FROM users WHERE id = $1', [userId]);
-                const user = uQ.rows[0];
-                const phone = user?.telephone_whatsapp || guest_info?.whatsapp;
-                
-                if (phone) {
-                    // Normalize phone number (should be in format like 229XXXXXXXX)
-                    const cleanPhone = phone.replace(/\D/g, '');
-                    
-                    // We use a template named 'payment_receipt' (needs to be created in Meta dashboard)
-                    // Components order: 1: Name, 2: Activity Title, 3: Amount, 4: Reference
-                    await sendWhatsAppMessage(cleanPhone, 'payment_receipt', [
-                        {
-                            type: "body",
-                            parameters: [
-                                { type: "text", text: `${userPrenom || ''} ${userNom || ''}` },
-                                { type: "text", text: activity.title },
-                                { type: "text", text: `${payment_amount || activity.price_fcfa} FCFA` },
-                                { type: "text", text: payment_reference }
-                            ]
-                        }
-                    ]);
-                }
-            } else if (process.env.SMTP_USER && userEmail) {
-                try {
-                    await transporter.sendMail({
-                        from: fromEmail,
-                        to: userEmail,
-                        subject: "Reçu de paiement - Lectorium Rosicrucianum Bénin",
-                        html: `
-                            <h2 style="color: #b89047;">Reçu de paiement</h2>
-                            <p>Bonjour ${userPrenom || ''} ${userNom || ''},</p>
-                            <p>Nous vous confirmons la réception de votre paiement pour l'activité <strong>${activity.title}</strong>.</p>
-                            <ul>
-                                <li><strong>Montant :</strong> ${payment_amount || activity.price_fcfa} FCFA</li>
-                                <li><strong>Référence MTN :</strong> ${payment_reference}</li>
-                                <li><strong>Bénéficiaire :</strong> Lectorium Rosicrucianum Bénin</li>
-                            </ul>
-                            <p>Merci pour votre participation.</p>
-                        `
-                    });
-                } catch (err) {
-                    console.error("Erreur envoi reçu:", err);
-                }
-            }
+        if (payment_method === 'momo') {
+            return res.status(400).json({ message: "Pour le paiement MTN Mobile Money, utilisez POST /api/payments/initiate" });
         }
 
         const dbRes = await db.query(
@@ -1005,6 +978,236 @@ app.get('/api/podcasts', async (req, res) => {
         const q = await db.query('SELECT * FROM podcasts ORDER BY created_at DESC');
         res.json(q.rows);
     } catch (err) { res.status(500).json({ message: "Erreur" }); }
+});
+
+// ========== MTN MOBILE MONEY PAYMENT ROUTES ==========
+
+const _sendPaymentReceipt = async ({ userEmail, whatsappPhone, userName, activityTitle, amount, financialTxnId, receiptPreference }) => {
+    if (receiptPreference === 'whatsapp' && whatsappPhone) {
+        const cleanPhone = whatsappPhone.replace(/\D/g, '');
+        await sendWhatsAppMessage(cleanPhone, 'payment_receipt', [{
+            type: 'body',
+            parameters: [
+                { type: 'text', text: userName },
+                { type: 'text', text: activityTitle },
+                { type: 'text', text: `${amount} FCFA` },
+                { type: 'text', text: financialTxnId || 'N/A' },
+            ]
+        }]);
+    } else if (process.env.SMTP_USER && userEmail) {
+        try {
+            await transporter.sendMail({
+                from: fromEmail,
+                to: userEmail,
+                subject: 'Reçu de paiement - Lectorium Rosicrucianum Bénin',
+                html: `
+                    <h2 style="color: #b89047;">Reçu de paiement confirmé</h2>
+                    <p>Bonjour ${userName},</p>
+                    <p>Nous confirmons votre paiement pour l'activité <strong>${activityTitle}</strong>.</p>
+                    <ul>
+                        <li><strong>Montant :</strong> ${amount} FCFA</li>
+                        <li><strong>ID Transaction MTN :</strong> ${financialTxnId || 'N/A'}</li>
+                    </ul>
+                    <p>Merci pour votre participation.</p>
+                `
+            });
+        } catch (err) {
+            console.error('Erreur envoi reçu paiement:', err);
+        }
+    }
+};
+
+// POST /api/payments/initiate — Démarre un RequestToPay MTN + crée la registration
+app.post('/api/payments/initiate', auth([]), async (req, res) => {
+    try {
+        const { activity_id, selected_site, phone_number, amount, receipt_preference, register_by_matricule, child_info, motivation } = req.body;
+
+        if (!phone_number) return res.status(400).json({ message: 'Numéro de téléphone MTN requis' });
+        if (!activity_id) return res.status(400).json({ message: 'ID activité requis' });
+
+        const actQ = await db.query('SELECT * FROM activities WHERE id = $1', [activity_id]);
+        if (!actQ.rows.length) return res.status(404).json({ message: 'Activité non trouvée' });
+        const activity = actQ.rows[0];
+
+        const now = new Date();
+        if (activity.inscription_start && now < new Date(activity.inscription_start))
+            return res.status(400).json({ message: "La période d'inscription n'est pas encore ouverte." });
+        if (activity.inscription_end && now > new Date(activity.inscription_end))
+            return res.status(400).json({ message: "La période d'inscription est terminée." });
+
+        let userId = req.user.id;
+        if (register_by_matricule) {
+            const mQ = await db.query('SELECT id FROM users WHERE matricule = $1', [register_by_matricule]);
+            if (!mQ.rows.length) return res.status(404).json({ message: 'Matricule non trouvé' });
+            userId = mQ.rows[0].id;
+        }
+
+        if (!child_info) {
+            const regCheck = await db.query('SELECT id FROM registrations WHERE user_id = $1 AND activity_id = $2', [userId, activity_id]);
+            if (regCheck.rows.length > 0) return res.status(400).json({ message: 'Candidature déjà envoyée pour cet événement' });
+        }
+
+        const payAmount = parseInt(amount) || activity.price_fcfa;
+        if (!payAmount) return res.status(400).json({ message: 'Montant invalide' });
+
+        const mtnReference = randomUUID();
+
+        const regResult = await db.query(
+            `INSERT INTO registrations (user_id, activity_id, selected_site, status, payment_status, payment_method, motivation, receipt_preference, child_info)
+             VALUES ($1, $2, $3, 'approved', 'processing', 'momo', $4, $5, $6) RETURNING id`,
+            [userId, activity_id, selected_site || null, motivation || 'Inscription MTN MoMo', receipt_preference || 'email', child_info ? JSON.stringify(child_info) : null]
+        );
+        const registrationId = regResult.rows[0].id;
+
+        await db.query(
+            `INSERT INTO payment_transactions (registration_id, user_id, amount, phone_number, status, mtn_reference, payer_message)
+             VALUES ($1, $2, $3, $4, 'pending', $5, $6)`,
+            [registrationId, req.user.id, payAmount, phone_number, mtnReference, `Inscription ${activity.title}`]
+        );
+
+        const mtnResult = await requestToPay(
+            payAmount, phone_number, mtnReference,
+            `Inscription ${activity.title}`,
+            'Lectorium Rosicrucianum Bénin'
+        );
+
+        if (!mtnResult.success) {
+            await db.query("UPDATE payment_transactions SET status='failed', error_message=$1 WHERE mtn_reference=$2", [mtnResult.error, mtnReference]);
+            await db.query("UPDATE registrations SET payment_status='failed' WHERE id=$1", [registrationId]);
+            return res.status(400).json({ message: mtnResult.error || "Échec de l'initiation du paiement MTN" });
+        }
+
+        await db.query("UPDATE payment_transactions SET status='processing' WHERE mtn_reference=$1", [mtnReference]);
+
+        return res.status(200).json({
+            mtn_reference: mtnReference,
+            registration_id: registrationId,
+            status: 'processing',
+            message: 'Validez le paiement sur votre téléphone MTN MoMo',
+        });
+    } catch (err) {
+        console.error('[/api/payments/initiate]', err);
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+// GET /api/payments/status/:reference — Polling frontend
+app.get('/api/payments/status/:reference', auth([]), async (req, res) => {
+    try {
+        const { reference } = req.params;
+
+        const txnQ = await db.query('SELECT * FROM payment_transactions WHERE mtn_reference = $1', [reference]);
+        if (!txnQ.rows.length) return res.status(404).json({ message: 'Transaction introuvable' });
+        const txn = txnQ.rows[0];
+
+        if (['completed', 'failed', 'cancelled'].includes(txn.status)) {
+            return res.json({ reference, status: txn.status, mtn_financial_transaction_id: txn.mtn_financial_transaction_id });
+        }
+
+        const statusResult = await getTransactionStatus(reference);
+        if (!statusResult.success) return res.status(500).json({ message: 'Erreur de vérification MTN' });
+
+        const mtnStatus = statusResult.status;
+
+        if (mtnStatus === 'SUCCESSFUL') {
+            await db.query(
+                "UPDATE payment_transactions SET status='completed', mtn_financial_transaction_id=$1, callback_received_at=NOW() WHERE mtn_reference=$2",
+                [statusResult.financialTransactionId, reference]
+            );
+            await db.query(
+                "UPDATE registrations SET payment_status='paid', payment_reference=$1, payment_amount=$2 WHERE id=$3",
+                [reference, txn.amount, txn.registration_id]
+            );
+            const userQ = await db.query('SELECT email, nom, prenom, telephone_whatsapp FROM users WHERE id = $1', [txn.user_id]);
+            const actQ = await db.query('SELECT title FROM activities JOIN registrations r ON r.activity_id = activities.id WHERE r.id = $1', [txn.registration_id]);
+            const regQ = await db.query('SELECT receipt_preference FROM registrations WHERE id = $1', [txn.registration_id]);
+            if (userQ.rows.length) {
+                const u = userQ.rows[0];
+                await _sendPaymentReceipt({
+                    userEmail: u.email,
+                    whatsappPhone: u.telephone_whatsapp,
+                    userName: `${u.prenom} ${u.nom}`,
+                    activityTitle: actQ.rows[0]?.title || '',
+                    amount: txn.amount,
+                    financialTxnId: statusResult.financialTransactionId,
+                    receiptPreference: regQ.rows[0]?.receipt_preference || 'email',
+                });
+            }
+            return res.json({ reference, status: 'completed', message: 'Paiement confirmé !' });
+        }
+
+        if (mtnStatus === 'FAILED') {
+            await db.query(
+                "UPDATE payment_transactions SET status='failed', error_message=$1 WHERE mtn_reference=$2",
+                [statusResult.reason || 'Paiement refusé', reference]
+            );
+            await db.query("UPDATE registrations SET payment_status='failed' WHERE id=$1", [txn.registration_id]);
+            return res.json({ reference, status: 'failed', reason: statusResult.reason || 'Paiement refusé ou annulé' });
+        }
+
+        return res.json({ reference, status: 'pending', message: 'En attente de validation utilisateur' });
+    } catch (err) {
+        console.error('[/api/payments/status]', err);
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+// POST /api/payments/callback/mtn — Webhook public appelé par MTN
+app.post('/api/payments/callback/mtn', async (req, res) => {
+    try {
+        const referenceId = req.headers['x-reference-id'] || req.body.referenceId;
+        if (!referenceId) return res.status(400).json({ message: 'Reference ID manquant' });
+
+        const txnQ = await db.query('SELECT * FROM payment_transactions WHERE mtn_reference = $1', [referenceId]);
+        if (!txnQ.rows.length) return res.status(404).json({ message: 'Transaction introuvable' });
+        const txn = txnQ.rows[0];
+
+        if (['completed', 'failed'].includes(txn.status)) {
+            return res.status(200).json({ message: 'Déjà traité' });
+        }
+
+        const statusResult = await getTransactionStatus(referenceId);
+        if (!statusResult.success) return res.status(500).json({ message: 'Erreur vérification MTN' });
+
+        const mtnStatus = statusResult.status;
+
+        if (mtnStatus === 'SUCCESSFUL') {
+            await db.query(
+                "UPDATE payment_transactions SET status='completed', mtn_financial_transaction_id=$1, callback_received_at=NOW() WHERE mtn_reference=$2",
+                [statusResult.financialTransactionId, referenceId]
+            );
+            await db.query(
+                "UPDATE registrations SET payment_status='paid', payment_reference=$1, payment_amount=$2 WHERE id=$3",
+                [referenceId, txn.amount, txn.registration_id]
+            );
+            const userQ = await db.query('SELECT email, nom, prenom, telephone_whatsapp FROM users WHERE id = $1', [txn.user_id]);
+            const actQ = await db.query('SELECT title FROM activities JOIN registrations r ON r.activity_id = activities.id WHERE r.id = $1', [txn.registration_id]);
+            const regQ = await db.query('SELECT receipt_preference FROM registrations WHERE id = $1', [txn.registration_id]);
+            if (userQ.rows.length) {
+                const u = userQ.rows[0];
+                await _sendPaymentReceipt({
+                    userEmail: u.email,
+                    whatsappPhone: u.telephone_whatsapp,
+                    userName: `${u.prenom} ${u.nom}`,
+                    activityTitle: actQ.rows[0]?.title || '',
+                    amount: txn.amount,
+                    financialTxnId: statusResult.financialTransactionId,
+                    receiptPreference: regQ.rows[0]?.receipt_preference || 'email',
+                });
+            }
+        } else if (mtnStatus === 'FAILED') {
+            await db.query(
+                "UPDATE payment_transactions SET status='failed', error_message=$1 WHERE mtn_reference=$2",
+                [statusResult.reason || 'Paiement refusé', referenceId]
+            );
+            await db.query("UPDATE registrations SET payment_status='failed' WHERE id=$1", [txn.registration_id]);
+        }
+
+        return res.status(200).json({ message: 'Callback traité' });
+    } catch (err) {
+        console.error('[/api/payments/callback/mtn]', err);
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
 });
 
 const PORT = process.env.PORT || 5000;

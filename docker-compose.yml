@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: lrb_postgres
+    environment:
+      POSTGRES_USER: lrb_user
+      POSTGRES_PASSWORD: lrb_password
+      POSTGRES_DB: lrb_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./backend/migrate_columns.sql:/docker-entrypoint-initdb.d/02_migrate_columns.sql
+      - ./backend/migration_payment.sql:/docker-entrypoint-initdb.d/03_migration_payment.sql
+      - ./backend/migration_missing_columns.sql:/docker-entrypoint-initdb.d/04_migration_missing_columns.sql
+      - ./backend/migration_payment_transactions.sql:/docker-entrypoint-initdb.d/05_migration_payment_transactions.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lrb_user -d lrb_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lrb_backend
+    ports:
+      - "3001:5000"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: lrb_frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - BACKEND_URL=http://backend:5000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
