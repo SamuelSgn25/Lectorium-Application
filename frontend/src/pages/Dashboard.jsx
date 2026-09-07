@@ -42,8 +42,7 @@ const Dashboard = () => {
     const [foundMember, setFoundMember] = useState(null);
     const [viewingProgram, setViewingProgram] = useState(null);
     const [selectedEvent, setSelectedEvent] = useState(null);
-
-
+    const [cotisationForm, setCotisationForm] = useState({ centre: 'Centre de ville de Cotonou', montant: 25000, mode: 'cash', reference: '', confirmation: '' });
 
     const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
     const ALL_SITES = ["Foyer Sole Novo à Djèrègbé", "Centre de ville de Cotonou", "Centre de ville de Lokossa", "Centre de ville de Natitingou", "Centre de ville de Porto-Novo", "Activité en ligne"];
@@ -448,6 +447,9 @@ const Dashboard = () => {
                             <div className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mb-2 mt-6 ml-3">Espace Membre</div>
                             <button onClick={() => { setTab('planning'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 p-3 rounded-md text-sm font-medium transition-all ${tab === 'planning' ? 'bg-[#b89047] text-white shadow-md' : 'text-stone-600 hover:bg-stone-50'}`}>
                                 <Calendar size={18} /> Mon Planning
+                            </button>
+                            <button onClick={() => { setTab('cotisations'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 p-3 rounded-md text-sm font-medium transition-all ${tab === 'cotisations' ? 'bg-[#b89047] text-white shadow-md' : 'text-stone-600 hover:bg-stone-50'}`}>
+                                <CheckCircle size={18} /> Cotisations
                             </button>
                             <button onClick={() => { setTab('settings'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 p-3 rounded-md text-sm font-medium transition-all ${tab === 'settings' ? 'bg-[#b89047] text-white shadow-md' : 'text-stone-600 hover:bg-stone-50'}`}>
                                 <Settings size={18} /> Mon Profil
@@ -995,6 +997,76 @@ const Dashboard = () => {
                             </div>
                         )}
 
+
+                        {tab === 'cotisations' && (
+                            <div className="max-w-5xl mx-auto space-y-8">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-stone-100 pb-4">
+                                    <div>
+                                        <h1 className="text-3xl font-serif text-stone-800">Paiement des cotisations</h1>
+                                        <p className="text-sm text-stone-500 mt-1">Suivi des cotisations et coordonnées de paiement par centre.</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div className="bg-stone-50 border border-stone-200 p-6">
+                                        <h3 className="text-sm font-bold text-[#b89047] uppercase tracking-widest mb-4">Informations de paiement</h3>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Centre de ville</label>
+                                                <select value={cotisationForm.centre} onChange={(e) => setCotisationForm({ ...cotisationForm, centre: e.target.value })} className="w-full p-3 border border-stone-200 bg-white text-sm">
+                                                    <option value="Centre de ville de Cotonou">Centre de ville de Cotonou</option>
+                                                    <option value="Centre de ville de Lokossa">Centre de ville de Lokossa</option>
+                                                    <option value="Centre de ville de Natitingou">Centre de ville de Natitingou</option>
+                                                    <option value="Centre de ville de Porto-Novo">Centre de ville de Porto-Novo</option>
+                                                    <option value="Foyer Sole Novo à Djèrègbé">Foyer Sole Novo à Djèrègbé</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Montant</label>
+                                                <input type="number" value={cotisationForm.montant} onChange={(e) => setCotisationForm({ ...cotisationForm, montant: e.target.value })} className="w-full p-3 border border-stone-200 bg-white text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Mode de paiement</label>
+                                                <select value={cotisationForm.mode} onChange={(e) => setCotisationForm({ ...cotisationForm, mode: e.target.value })} className="w-full p-3 border border-stone-200 bg-white text-sm">
+                                                    <option value="cash">Cash</option>
+                                                    <option value="momo">MTN MoMo</option>
+                                                    <option value="bank">Virement / Banque</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Référence / confirmation</label>
+                                                <input type="text" value={cotisationForm.reference} onChange={(e) => setCotisationForm({ ...cotisationForm, reference: e.target.value })} placeholder="Ex. 123456 / Réf. MoMo" className="w-full p-3 border border-stone-200 bg-white text-sm" />
+                                            </div>
+                                            <button className="w-full bg-[#b89047] text-white py-3 text-xs font-bold uppercase tracking-widest hover:bg-[#a37b3b]" onClick={() => { alert(`Cotisation enregistrée pour ${cotisationForm.centre} — ${cotisationForm.montant} FCFA (${cotisationForm.mode}).`); }}>
+                                                Enregistrer le paiement
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white border border-stone-200 p-6">
+                                        <h3 className="text-sm font-bold text-[#b89047] uppercase tracking-widest mb-4">Numéros de contact à afficher</h3>
+                                        <div className="space-y-4 text-sm text-stone-700">
+                                            <div className="p-4 bg-stone-50 border border-stone-200">
+                                                <div className="font-bold text-stone-800">Centre de ville de Cotonou</div>
+                                                <div className="mt-2">Numéro : +229 97 77 03 35</div>
+                                            </div>
+                                            <div className="p-4 bg-stone-50 border border-stone-200">
+                                                <div className="font-bold text-stone-800">Centre de ville de Lokossa</div>
+                                                <div className="mt-2">Numéro : +229 97 77 03 35</div>
+                                            </div>
+                                            <div className="p-4 bg-stone-50 border border-stone-200">
+                                                <div className="font-bold text-stone-800">Centre de ville de Natitingou</div>
+                                                <div className="mt-2">Numéro : +229 97 77 03 35</div>
+                                            </div>
+                                            <div className="p-4 bg-stone-50 border border-stone-200">
+                                                <div className="font-bold text-stone-800">Centre de ville de Porto-Novo</div>
+                                                <div className="mt-2">Numéro : +229 97 77 03 35</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* SETTINGS (User Profil) */}
                         {tab === 'settings' && (
