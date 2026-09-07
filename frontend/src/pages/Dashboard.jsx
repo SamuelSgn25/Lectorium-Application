@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
-import { CheckCircle, XCircle, Clock, Settings, Users, Calendar, Plus, Trash2, Edit, FileDown, Eye, EyeOff, Menu, X } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Settings, Users, Calendar, Plus, Trash2, Edit, FileDown, Eye, EyeOff, Menu, X, ShieldCheck } from 'lucide-react';
 import ApplicationForm from '../components/ApplicationForm';
 
 import jsPDF from 'jspdf';
