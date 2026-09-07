@@ -42,14 +42,86 @@ const Dashboard = () => {
     const [foundMember, setFoundMember] = useState(null);
     const [viewingProgram, setViewingProgram] = useState(null);
     const [selectedEvent, setSelectedEvent] = useState(null);
-    const [cotisationForm, setCotisationForm] = useState({ centre: 'Centre de ville de Cotonou', montant: 25000, mode: 'cash', reference: '', confirmation: '' });
+    const [cotisationForm, setCotisationForm] = useState({
+        centre: 'Centre de ville de Cotonou',
+        montant: 25000,
+        mode: 'momo',
+        sourceNumber: '+229 97 77 03 35',
+        receiptPreference: 'email',
+        receiptValue: '',
+        reference: '',
+        confirmation: ''
+    });
 
     const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
     const ALL_SITES = ["Foyer Sole Novo à Djèrègbé", "Centre de ville de Cotonou", "Centre de ville de Lokossa", "Centre de ville de Natitingou", "Centre de ville de Porto-Novo", "Activité en ligne"];
     const ACTIVITY_TYPES = ["Conférence de Renouvellement", "Conférence JR", "Conférence de Noël", "Conférence de l'Ecole Intérieure", "Conférence de l'Ecole Extérieure", "Activité Publique", "Conférence de Jeunesse"];
+    const CENTER_PAYMENT_NUMBERS = {
+        'Centre de ville de Cotonou': '+229 97 77 03 35',
+        'Centre de ville de Lokossa': '+229 97 77 03 35',
+        'Centre de ville de Natitingou': '+229 97 77 03 35',
+        'Centre de ville de Porto-Novo': '+229 97 77 03 35',
+        'Foyer Sole Novo à Djèrègbé': '+229 97 77 03 35'
+    };
 
     const GRADES = ['Nouveau membre', 'Jeunesse A entre 6 et 9 ans', 'Jeunesse B entre 9 et 12 ans', 'Jeunesse C entre 12 et 15 ans', 'Jeunesse D entre 15 et 18 ans', 'JR entre 18 et 30 ans', '1er aspect', '2ème aspect', '3ème aspect', '4ème aspect', '5ème aspect', '6ème aspect', '7ème aspect', '2ème Aspect', 'Graal', 'ECCLESIA 2014', 'ECCLESIA 2021', 'ECCLESIA 2025', 'ECS'];
 
+
+    const prepareCotisationReceipt = (nextReceiptPreference, currentUser = user) => {
+        const preferredMethod = nextReceiptPreference || (currentUser?.telephone_whatsapp ? 'whatsapp' : 'email');
+        const defaultValue = preferredMethod === 'whatsapp' ? (currentUser?.telephone_whatsapp || '') : (currentUser?.email || '');
+
+        setCotisationForm(prev => ({
+            ...prev,
+            receiptPreference: preferredMethod,
+            receiptValue: currentUser && (currentUser.role === 'Admin' || currentUser.role === 'SuperAdmin') ? defaultValue : prev.receiptValue || defaultValue
+        }));
+    };
+
+    const handleCotisationCentreChange = (centre) => {
+        setCotisationForm(prev => ({
+            ...prev,
+            centre,
+            sourceNumber: CENTER_PAYMENT_NUMBERS[centre] || prev.sourceNumber || '+229 97 77 03 35'
+        }));
+    };
+
+    const finalizeCotisationPayment = () => {
+        if (!cotisationForm.montant || Number(cotisationForm.montant) <= 0) {
+            alert('Veuillez préciser un montant valide pour la cotisation.');
+            return;
+        }
+
+        if (cotisationForm.mode !== 'momo') {
+            alert('Les cotisations ne sont acceptées que par MTN MoMo.');
+            return;
+        }
+
+        if (!cotisationForm.sourceNumber) {
+            alert('Le numéro de départ MTN du centre est requis pour la transaction.');
+            return;
+        }
+
+        if (!cotisationForm.reference || !cotisationForm.reference.trim()) {
+            alert('Veuillez renseigner la référence ou la confirmation du transfert MoMo.');
+            return;
+        }
+
+        if (!cotisationForm.receiptValue || !cotisationForm.receiptValue.trim()) {
+            alert('Veuillez renseigner le contact de réception du reçu (email ou WhatsApp).');
+            return;
+        }
+
+        const normalizedPhone = cotisationForm.receiptPreference === 'whatsapp'
+            ? cotisationForm.receiptValue.replace(/\D/g, '')
+            : '';
+
+        const receiptMessage = cotisationForm.receiptPreference === 'whatsapp'
+            ? `Le reçu WhatsApp sera envoyé au numéro ${normalizedPhone || cotisationForm.receiptValue}.`
+            : `Le reçu email sera envoyé à ${cotisationForm.receiptValue}.`;
+
+        alert(`Cotisation enregistrée pour ${cotisationForm.centre} — ${cotisationForm.montant} FCFA via MTN MoMo.\nNuméro de départ : ${cotisationForm.sourceNumber}\n${receiptMessage}`);
+    };
 
     const fetchData = async () => {
         try {
@@ -128,6 +200,14 @@ const Dashboard = () => {
         if (user) {
             const userRank = user.role ? user.role.toLowerCase() : "";
             if (userRank !== 'admin' && userRank !== 'super_admin' && userRank !== 'superadmin') setTab('planning');
+            setCotisationForm(prev => ({
+                ...prev,
+                sourceNumber: CENTER_PAYMENT_NUMBERS[prev.centre] || prev.sourceNumber || '+229 97 77 03 35',
+                receiptPreference: prev.receiptPreference || (user?.telephone_whatsapp ? 'whatsapp' : 'email'),
+                receiptValue: prev.receiptValue || (user?.role === 'Admin' || user?.role === 'SuperAdmin'
+                    ? (user?.telephone_whatsapp || user?.email || '')
+                    : (user?.telephone_whatsapp || user?.email || ''))
+            }));
             fetchData();
         }
     }, [user]);
@@ -1027,41 +1107,51 @@ const Dashboard = () => {
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Mode de paiement</label>
-                                                <select value={cotisationForm.mode} onChange={(e) => setCotisationForm({ ...cotisationForm, mode: e.target.value })} className="w-full p-3 border border-stone-200 bg-white text-sm">
-                                                    <option value="cash">Cash</option>
+                                                <select value={cotisationForm.mode} onChange={(e) => setCotisationForm({ ...cotisationForm, mode: e.target.value })} className="w-full p-3 border border-stone-200 bg-white text-sm" disabled>
                                                     <option value="momo">MTN MoMo</option>
-                                                    <option value="bank">Virement / Banque</option>
                                                 </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Numéro de départ MTN</label>
+                                                <input type="text" value={cotisationForm.sourceNumber} readOnly className="w-full p-3 border border-stone-200 bg-stone-100 text-sm font-mono" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Réception du reçu</label>
+                                                <div className="grid grid-cols-2 gap-2 mb-2">
+                                                    <button type="button" onClick={() => prepareCotisationReceipt('email')} className={`p-2 text-xs font-bold uppercase tracking-widest border ${cotisationForm.receiptPreference === 'email' ? 'bg-[#b89047] text-white border-[#b89047]' : 'bg-white text-stone-600 border-stone-200'}`}>
+                                                        Email
+                                                    </button>
+                                                    <button type="button" onClick={() => prepareCotisationReceipt('whatsapp')} className={`p-2 text-xs font-bold uppercase tracking-widest border ${cotisationForm.receiptPreference === 'whatsapp' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-stone-600 border-stone-200'}`}>
+                                                        WhatsApp
+                                                    </button>
+                                                </div>
+                                                <input
+                                                    type={cotisationForm.receiptPreference === 'email' ? 'email' : 'tel'}
+                                                    value={cotisationForm.receiptValue}
+                                                    onChange={(e) => setCotisationForm({ ...cotisationForm, receiptValue: e.target.value })}
+                                                    placeholder={cotisationForm.receiptPreference === 'email' ? 'adresse@email.com' : 'Numéro WhatsApp'}
+                                                    className="w-full p-3 border border-stone-200 bg-white text-sm"
+                                                />
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Référence / confirmation</label>
                                                 <input type="text" value={cotisationForm.reference} onChange={(e) => setCotisationForm({ ...cotisationForm, reference: e.target.value })} placeholder="Ex. 123456 / Réf. MoMo" className="w-full p-3 border border-stone-200 bg-white text-sm" />
                                             </div>
-                                            <button className="w-full bg-[#b89047] text-white py-3 text-xs font-bold uppercase tracking-widest hover:bg-[#a37b3b]" onClick={() => { alert(`Cotisation enregistrée pour ${cotisationForm.centre} — ${cotisationForm.montant} FCFA (${cotisationForm.mode}).`); }}>
+                                            <button className="w-full bg-[#b89047] text-white py-3 text-xs font-bold uppercase tracking-widest hover:bg-[#a37b3b]" onClick={finalizeCotisationPayment}>
                                                 Enregistrer le paiement
                                             </button>
                                         </div>
                                     </div>
 
                                     <div className="bg-white border border-stone-200 p-6">
-                                        <h3 className="text-sm font-bold text-[#b89047] uppercase tracking-widest mb-4">Numéros de contact à afficher</h3>
+                                        <h3 className="text-sm font-bold text-[#b89047] uppercase tracking-widest mb-4">Numéros de départ affectés par centre</h3>
                                         <div className="space-y-4 text-sm text-stone-700">
-                                            <div className="p-4 bg-stone-50 border border-stone-200">
-                                                <div className="font-bold text-stone-800">Centre de ville de Cotonou</div>
-                                                <div className="mt-2">Numéro : +229 97 77 03 35</div>
-                                            </div>
-                                            <div className="p-4 bg-stone-50 border border-stone-200">
-                                                <div className="font-bold text-stone-800">Centre de ville de Lokossa</div>
-                                                <div className="mt-2">Numéro : +229 97 77 03 35</div>
-                                            </div>
-                                            <div className="p-4 bg-stone-50 border border-stone-200">
-                                                <div className="font-bold text-stone-800">Centre de ville de Natitingou</div>
-                                                <div className="mt-2">Numéro : +229 97 77 03 35</div>
-                                            </div>
-                                            <div className="p-4 bg-stone-50 border border-stone-200">
-                                                <div className="font-bold text-stone-800">Centre de ville de Porto-Novo</div>
-                                                <div className="mt-2">Numéro : +229 97 77 03 35</div>
-                                            </div>
+                                            {Object.entries(CENTER_PAYMENT_NUMBERS).map(([centre, numero]) => (
+                                                <div key={centre} className={`p-4 border ${cotisationForm.centre === centre ? 'bg-[#b89047]/5 border-[#b89047]/40' : 'bg-stone-50 border-stone-200'}`}>
+                                                    <div className="font-bold text-stone-800">{centre}</div>
+                                                    <div className="mt-2">Numéro de départ : {numero}</div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 </div>
