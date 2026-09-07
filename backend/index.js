@@ -37,6 +37,23 @@ db.query(`
     ALTER TABLE registrations ADD COLUMN IF NOT EXISTS selected_site VARCHAR(255);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS receipt_preference VARCHAR(20) DEFAULT 'email';
     ALTER TABLE users ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'pending';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS matricule VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS centre VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS sexe VARCHAR(50);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS nom_jeune_fille VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS date_naissance DATE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS lieu_naissance VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS nationalite VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS adresse TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS telephone_whatsapp VARCHAR(50);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS telephone_autre VARCHAR(50);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS etat_civil VARCHAR(100);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS profession VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS aptitudes TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS nombre_enfants INTEGER DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS motivation_adhesion TEXT;
+    ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+    ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
 `).catch(err => console.error("Auto-migration error:", err));
 
 db.query(`
@@ -225,14 +242,16 @@ app.post('/api/register', async (req, res) => {
 // Look up member by matricule (Public for quick registration)
 app.get('/api/members/matricule/:matricule', async (req, res) => {
     try {
-        const { matricule } = req.params;
+        const matricule = (req.params.matricule || '').trim();
+        if (!matricule) return res.status(400).json({ message: 'Matricule requis' });
+
         const member = await db.query(
-            `SELECT nom, prenom, sexe, centre as center, grade as aspect, date_naissance, email 
-             FROM users 
-             WHERE matricule = $1`,
+            `SELECT id, nom, prenom, sexe, centre AS center, grade AS aspect, date_naissance, email, matricule
+             FROM users
+             WHERE LOWER(TRIM(matricule)) = LOWER(TRIM($1))`,
             [matricule]
         );
-        if (member.rows.length === 0) return res.status(404).json({ message: "Matricule non trouvé" });
+        if (member.rows.length === 0) return res.status(404).json({ message: 'Matricule non trouvé' });
 
         const m = member.rows[0];
         let age = null;
@@ -240,8 +259,8 @@ app.get('/api/members/matricule/:matricule', async (req, res) => {
             const birthDate = new Date(m.date_naissance);
             const today = new Date();
             age = today.getFullYear() - birthDate.getFullYear();
-            const m_diff = today.getMonth() - birthDate.getMonth();
-            if (m_diff < 0 || (m_diff === 0 && today.getDate() < birthDate.getDate())) {
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
                 age--;
             }
         }
@@ -249,48 +268,45 @@ app.get('/api/members/matricule/:matricule', async (req, res) => {
         res.json({ ...m, age });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: "Erreur" });
+        res.status(500).json({ message: 'Erreur' });
     }
 });
-
 
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password, matricule, loginType } = req.body;
 
         let user;
-        if (loginType === 'membre') {
-            if (!matricule) return res.status(400).json({ message: "Veuillez renseigner votre matricule" });
-            const userQuery = await db.query('SELECT * FROM users WHERE matricule = $1', [matricule]);
+        const normalizedMatricule = (matricule || '').trim();
+        const normalizedEmail = (email || '').trim();
+
+        if (loginType === 'membre' || normalizedMatricule) {
+            if (!normalizedMatricule) return res.status(400).json({ message: 'Veuillez renseigner votre matricule' });
+
+            const userQuery = await db.query(
+                'SELECT * FROM users WHERE LOWER(TRIM(matricule)) = LOWER(TRIM($1))',
+                [normalizedMatricule]
+            );
             if (userQuery.rows.length === 0) {
-                return res.status(400).json({ message: "Matricule incorrect ou non trouvé" });
+                return res.status(400).json({ message: 'Matricule incorrect ou non trouvé' });
             }
             user = userQuery.rows[0];
-            
-            const r = user.role ? user.role.toLowerCase() : 'membre';
-            if (r === 'admin' || r === 'superadmin' || r === 'super_admin') {
-                return res.status(403).json({ message: "Les administrateurs doivent utiliser la connexion Admin avec email et mot de passe." });
-            }
         } else {
-            // Admin/SuperAdmin Login
-            if (!email || !password) return res.status(400).json({ message: "Veuillez renseigner votre email et mot de passe." });
-            
-            const userQuery = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+            if (!normalizedEmail || !password) return res.status(400).json({ message: 'Veuillez renseigner votre email et mot de passe.' });
+
+            const userQuery = await db.query('SELECT * FROM users WHERE email = $1', [normalizedEmail]);
             if (userQuery.rows.length === 0) {
-                return res.status(404).json({ message: "Aucun administrateur trouvé avec cette adresse email." });
+                return res.status(404).json({ message: 'Aucun compte trouvé avec cette adresse email.' });
             }
 
             user = userQuery.rows[0];
-            
-            const r = user.role ? user.role.toLowerCase() : 'membre';
-            if (r !== 'admin' && r !== 'superadmin' && r !== 'super_admin') {
-                return res.status(403).json({ message: "Cet accès est strictement réservé aux administrateurs. Utilisez la connexion par Matricule." });
+            if (!user.password) {
+                return res.status(401).json({ message: 'Ce compte ne dispose pas de mot de passe. Utilisez la connexion par matricule.' });
             }
 
-            // Check password only for Non-Member login types (Admins)
             const isMatch = await bcrypt.compare(password, user.password);
             if (!isMatch) {
-                return res.status(401).json({ message: "Le mot de passe saisi est incorrect. (Assurez-vous qu'il est bien crypté (bcrypt) dans NeonDB)." });
+                return res.status(401).json({ message: 'Le mot de passe saisi est incorrect.' });
             }
         }
 
@@ -302,14 +318,10 @@ app.post('/api/login', async (req, res) => {
         }
 
         const token = jwt.sign({ id: user.id, role: user.role, status: user.status }, JWT_SECRET, { expiresIn: '7d' });
-
-        res.json({
-            token,
-            user
-        });
+        res.json({ token, user });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: "Erreur serveur" });
+        res.status(500).json({ message: 'Erreur serveur' });
     }
 });
 
@@ -452,27 +464,38 @@ app.put('/api/users/me', auth(), async (req, res) => {
 app.post('/api/users', auth(['Admin', 'SuperAdmin']), async (req, res) => {
     try {
         const { nom, prenom, email, role, password, matricule, sexe, centre, grade } = req.body;
-        const userExists = await db.query('SELECT * FROM users WHERE email = $1', [email]);
-        if (userExists.rows.length > 0) return res.status(400).json({ message: "Cet email existe déjà" });
-        if (matricule) {
-            const matExists = await db.query('SELECT * FROM users WHERE matricule = $1', [matricule]);
-            if (matExists.rows.length > 0) return res.status(400).json({ message: "Ce matricule est déjà utilisé" });
+
+        const normalizedEmail = (email || '').trim();
+        const normalizedPassword = (password || '').trim();
+        const normalizedMatricule = (matricule || '').trim();
+
+        if (normalizedEmail) {
+            const userExists = await db.query('SELECT * FROM users WHERE email = $1', [normalizedEmail]);
+            if (userExists.rows.length > 0) return res.status(400).json({ message: 'Cet email existe déjà' });
         }
 
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+        if (normalizedMatricule) {
+            const matExists = await db.query('SELECT * FROM users WHERE LOWER(TRIM(matricule)) = LOWER(TRIM($1))', [normalizedMatricule]);
+            if (matExists.rows.length > 0) return res.status(400).json({ message: 'Ce matricule est déjà utilisé' });
+        }
+
+        let hashedPassword = null;
+        if (normalizedPassword) {
+            const salt = await bcrypt.genSalt(10);
+            hashedPassword = await bcrypt.hash(normalizedPassword, salt);
+        }
+
         await db.query(
-            `INSERT INTO users (nom, prenom, email, role, status, grade, password, matricule, sexe, centre) 
+            `INSERT INTO users (nom, prenom, email, role, status, grade, password, matricule, sexe, centre)
              VALUES ($1, $2, $3, $4, 'approved', $5, $6, $7, $8, $9)`,
-            [nom, prenom, email, role, grade || 'Nouveau membre', hashedPassword, matricule, sexe, centre]
+            [nom, prenom, normalizedEmail || null, role || 'Membre', grade || 'Nouveau membre', hashedPassword, normalizedMatricule || null, sexe || null, centre || null]
         );
 
-
-        if (process.env.SMTP_USER) {
+        if (process.env.SMTP_USER && normalizedEmail && normalizedPassword) {
             try {
                 await transporter.sendMail({
                     from: fromEmail,
-                    to: email,
+                    to: normalizedEmail,
                     subject: "Vos identifiants d'accès - Lectorium Rosicrucianum",
                     html: `
                         <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e1dcc5; padding: 20px;">
@@ -481,27 +504,29 @@ app.post('/api/users', auth(['Admin', 'SuperAdmin']), async (req, res) => {
                             <p>Un profil vient d'être généré pour vous par l'administration du Lectorium Rosicrucianum.</p>
                             <p>Vous pouvez désormais vous connecter à votre espace personnel avec les identifiants suivants :</p>
                             <div style="background-color: #fdfbf7; border: 1px solid #b89047; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                                <p style="margin: 5px 0;"><strong>Adresse Email :</strong> ${email}</p>
-                                <p style="margin: 5px 0;"><strong>Mot de passe :</strong> ${password}</p>
+                                <p style="margin: 5px 0;"><strong>Adresse Email :</strong> ${normalizedEmail}</p>
+                                <p style="margin: 5px 0;"><strong>Mot de passe :</strong> ${normalizedPassword}</p>
                             </div>
-                            <p><strong>Rôle :</strong> ${role}</p>
+                            <p><strong>Rôle :</strong> ${role || 'Membre'}</p>
                             <p style="margin-top: 20px;">Nous vous recommandons de changer votre mot de passe après votre première connexion dans les paramètres de votre profil.</p>
                             <div style="text-align: center; margin-top: 30px;">
                                 <a href="https://lectorium-application.vercel.app/login" style="background-color: #b89047; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Se connecter à mon espace</a>
                             </div>
                             <p style="margin-top: 30px;">À très bientôt,</p>
                             <p><em>L'administration du Lectorium Rosicrucianum</em></p>
-
                         </div>
                     `
                 });
             } catch (mailErr) {
-                console.error("Erreur envoi email :", mailErr);
+                console.error('Erreur envoi email :', mailErr);
             }
         }
 
-        res.status(201).json({ message: "Utilisateur créé avec succès" });
-    } catch (err) { res.status(500).json({ message: "Erreur serveur" }); }
+        res.status(201).json({ message: 'Utilisateur créé avec succès' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
 });
 
 
