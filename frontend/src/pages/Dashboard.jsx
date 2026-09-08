@@ -46,7 +46,7 @@ const Dashboard = () => {
         centre: 'Centre de ville de Cotonou',
         montant: 25000,
         mode: 'momo',
-        sourceNumber: '+229 97 77 03 35',
+        sourceNumber: '+229 01 97 77 03 35',
         receiptPreference: 'email',
         receiptValue: '',
         reference: '',
@@ -57,11 +57,11 @@ const Dashboard = () => {
     const ALL_SITES = ["Foyer Sole Novo à Djèrègbé", "Centre de ville de Cotonou", "Centre de ville de Lokossa", "Centre de ville de Natitingou", "Centre de ville de Porto-Novo", "Activité en ligne"];
     const ACTIVITY_TYPES = ["Conférence de Renouvellement", "Conférence JR", "Conférence de Noël", "Conférence de l'Ecole Intérieure", "Conférence de l'Ecole Extérieure", "Activité Publique", "Conférence de Jeunesse"];
     const CENTER_PAYMENT_NUMBERS = {
-        'Centre de ville de Cotonou': '+229 97 77 03 35',
-        'Centre de ville de Lokossa': '+229 97 77 03 35',
-        'Centre de ville de Natitingou': '+229 97 77 03 35',
-        'Centre de ville de Porto-Novo': '+229 97 77 03 35',
-        'Foyer Sole Novo à Djèrègbé': '+229 97 77 03 35'
+        'Centre de ville de Cotonou': '+229 01 59 40 21 24',
+        'Centre de ville de Lokossa': '+229 01 46 16 12 93',
+        'Centre de ville de Natitingou': '+229 01 52 76 39 88',
+        'Centre de ville de Porto-Novo': '+229 01 46 16 12 92',
+        'Foyer Sole Novo à Djèrègbé': '+229 01 59 40 21 25'
     };
 
     const GRADES = ['Nouveau membre', 'Jeunesse A entre 6 et 9 ans', 'Jeunesse B entre 9 et 12 ans', 'Jeunesse C entre 12 et 15 ans', 'Jeunesse D entre 15 et 18 ans', 'JR entre 18 et 30 ans', '1er aspect', '2ème aspect', '3ème aspect', '4ème aspect', '5ème aspect', '6ème aspect', '7ème aspect', '2ème Aspect', 'Graal', 'ECCLESIA 2014', 'ECCLESIA 2021', 'ECCLESIA 2025', 'ECS'];
