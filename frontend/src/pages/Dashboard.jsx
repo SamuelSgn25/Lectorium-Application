@@ -16,6 +16,15 @@ const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales
 
 const Dashboard = () => {
     const { user, setUser } = useContext(AuthContext); // Can refresh user internally if needed
+    const [toasts, setToasts] = useState([]);
+
+    const showToast = (type = 'info', message = '') => {
+        const id = Date.now() + Math.random();
+        setToasts(prev => [...prev, { id, type, message }]);
+        setTimeout(() => {
+            setToasts(prev => prev.filter(item => item.id !== id));
+        }, 3500);
+    };
 
     const [data, setData] = useState({ activities: [], registrations: [], myRegistrations: [], users: [] });
     const [tab, setTab] = useState('overview');
@@ -80,27 +89,27 @@ const Dashboard = () => {
 
     const finalizeCotisationPayment = () => {
         if (!cotisationForm.montant || Number(cotisationForm.montant) <= 0) {
-            alert('Veuillez préciser un montant valide pour la cotisation.');
+            showToast('error', 'Veuillez préciser un montant valide pour la cotisation.');
             return;
         }
 
         if (cotisationForm.mode !== 'momo') {
-            alert('Les cotisations ne sont acceptées que par MTN MoMo.');
+            showToast('error', 'Les cotisations ne sont acceptées que par MTN MoMo.');
             return;
         }
 
         if (!cotisationForm.sourceNumber) {
-            alert('Le numéro de départ MTN du centre est requis pour la transaction.');
+            showToast('error', 'Le numéro de départ MTN du centre est requis pour la transaction.');
             return;
         }
 
         if (!cotisationForm.reference || !cotisationForm.reference.trim()) {
-            alert('Veuillez renseigner la référence ou la confirmation du transfert MoMo.');
+            showToast('error', 'Veuillez renseigner la référence ou la confirmation du transfert MoMo.');
             return;
         }
 
         if (!cotisationForm.receiptValue || !cotisationForm.receiptValue.trim()) {
-            alert('Veuillez renseigner le contact de réception du reçu (email ou WhatsApp).');
+            showToast('error', 'Veuillez renseigner le contact de réception du reçu (email ou WhatsApp).');
             return;
         }
 
@@ -112,7 +121,7 @@ const Dashboard = () => {
             ? `Le reçu WhatsApp sera envoyé au numéro ${normalizedPhone || cotisationForm.receiptValue}.`
             : `Le reçu email sera envoyé à ${cotisationForm.receiptValue}.`;
 
-        alert(`Cotisation enregistrée pour ${cotisationForm.centre} — ${cotisationForm.montant} FCFA via MTN MoMo.\nNuméro de départ : ${cotisationForm.sourceNumber}\n${receiptMessage}`);
+        showToast('success', `Cotisation enregistrée pour ${cotisationForm.centre} — ${cotisationForm.montant} FCFA via MTN MoMo. Numéro de départ : ${cotisationForm.sourceNumber}. ${receiptMessage}`);
     };
 
     const fetchData = async () => {
@@ -223,7 +232,7 @@ const Dashboard = () => {
             const preferredMethod = window.prompt('Mode de réception du reçu ? (email/whatsapp)', user?.receipt_preference || (user?.telephone_whatsapp ? 'whatsapp' : 'email'));
             if (!preferredMethod) return;
             if (!['email', 'whatsapp'].includes(preferredMethod.toLowerCase())) {
-                alert('Le mode doit être email ou whatsapp');
+                showToast('error', 'Le mode doit être email ou whatsapp');
                 return;
             }
 
@@ -236,10 +245,10 @@ const Dashboard = () => {
 
             await axios.put(`/api/admin/users/${id}/status`, payload, { headers });
             await fetchData();
-            alert('Paiement validé et reçu envoyé.');
+            showToast('success', 'Paiement validé et reçu envoyé.');
         } catch (err) {
             console.error(err);
-            alert(err.response?.data?.message || 'Erreur lors de la validation du paiement');
+            showToast('error', err.response?.data?.message || 'Erreur lors de la validation du paiement');
         }
     };
 
@@ -247,8 +256,8 @@ const Dashboard = () => {
         try {
             await axios.put(`/api/admin/users/${id}/role-grade`, fields, { headers });
             fetchData();
-            alert("Informations du membre mises à jour.");
-        } catch (err) { alert(err.response?.data?.message || "Erreur de modification"); }
+            showToast('success', 'Informations du membre mises à jour.');
+        } catch (err) { showToast('error', err.response?.data?.message || 'Erreur de modification'); }
     };
 
 
@@ -262,7 +271,7 @@ const Dashboard = () => {
 
     const addProgramItem = () => {
         if (!programItem.title || !programItem.hour_start || !programItem.day_date) { 
-            alert("Veuillez remplir le titre, l'heure et la date d'activité.");
+            showToast('error', 'Veuillez remplir le titre, l\'heure et la date d\'activité.');
             return; 
         }
         setActivityForm({ ...activityForm, program: [...(activityForm.program || []), programItem] });
@@ -279,9 +288,9 @@ const Dashboard = () => {
     const createActivity = async (e) => {
         e.preventDefault();
         try {
-            if (activityForm.sites.length === 0) { alert("Veuillez sélectionner au moins un site"); return; }
+            if (activityForm.sites.length === 0) { showToast('error', 'Veuillez sélectionner au moins un site'); return; }
             await axios.post(`/api/activities`, activityForm, { headers });
-            alert("Activité créée de manière globale !");
+            showToast('success', 'Activité créée de manière globale !');
             setActivityForm({ title: '', description: '', type: 'Conférence de Renouvellement', date_start: '', date_end: '', inscription_start: '', inscription_end: '', price_fcfa: 0, max_participants: '', is_public: true, sites: [], program: [], is_paid: false, participation_amounts: [] });
             fetchData();
         } catch (err) { console.error(err); }
@@ -298,10 +307,10 @@ const Dashboard = () => {
         e.preventDefault();
         try {
             await axios.post('/api/users', userForm, { headers });
-            alert("Compte créé avec succès !");
+            showToast('success', 'Compte créé avec succès !');
             setUserForm({ nom: '', prenom: '', email: '', role: 'Membre', password: '', matricule: '', sexe: 'Masculin', centre: ALL_SITES[0] });
             fetchData();
-        } catch (err) { alert(err.response?.data?.message || "Erreur création compte"); }
+        } catch (err) { showToast('error', err.response?.data?.message || 'Erreur création compte'); }
     };
 
 
@@ -357,13 +366,12 @@ const Dashboard = () => {
         e.preventDefault();
         try {
             await axios.put(`/api/users/me`, profileForm, { headers });
-            alert("Paramètres mis à jour");
-            // Rafraîchir les données locales de l'utilisateur
+            showToast('success', 'Paramètres mis à jour.');
             const me = await axios.get('/api/users/me', { headers });
             localStorage.setItem('user', JSON.stringify(me.data));
             setUser(me.data);
             setProfileForm(prev => ({ ...prev, password: '' }));
-        } catch (err) { alert(err.response?.data?.message || "Erreur lors de la mise à jour"); }
+        } catch (err) { showToast('error', err.response?.data?.message || 'Erreur lors de la mise à jour'); }
     };
 
 
@@ -372,8 +380,9 @@ const Dashboard = () => {
         try {
             const res = await axios.get(`/api/members/matricule/${matriculeSearch}`);
             setFoundMember(res.data);
+            showToast('success', `Matricule validé pour ${res.data.prenom} ${res.data.nom}.`);
         } catch (err) {
-            alert("Matricule non trouvé");
+            showToast('error', 'Matricule non trouvé');
             setFoundMember(null);
         }
     };
@@ -387,7 +396,7 @@ const Dashboard = () => {
             const list = act.sites.join('\n- ');
             const choice = window.prompt(`Sur quel site souhaitez-vous inscrire cet élève ?\n\n- ${list}\n\n(Veuillez taper le nom du site exactement comme affiché)`);
             if (!choice) return;
-            if (!act.sites.includes(choice)) { alert("Site invalide."); return; }
+            if (!act.sites.includes(choice)) { showToast('error', 'Site invalide.'); return; }
             selected_site = choice;
         } else if (act.sites && act.sites.length === 1) {
             selected_site = act.sites[0];
@@ -417,17 +426,17 @@ const Dashboard = () => {
             }
 
             await axios.post('/api/register-activity', payload, { headers });
-            alert("Inscription réussie !");
+            showToast('success', 'Inscription réussie !');
             setFoundMember(null);
             setMatriculeSearch('');
             fetchData();
-        } catch (err) { alert(err.response?.data?.message || 'Erreur'); }
+        } catch (err) { showToast('error', err.response?.data?.message || 'Erreur'); }
     };
 
     const registerThirdParty = async (e, activity_id) => {
         if (e) e.preventDefault();
         const act = data.activities.find(a => a.id === activity_id);
-        if (act && act.sites && act.sites.length > 0 && !thirdPartyForm.selected_site) { alert("Veuillez sélectionner un site."); return; }
+        if (act && act.sites && act.sites.length > 0 && !thirdPartyForm.selected_site) { showToast('error', 'Veuillez sélectionner un site.'); return; }
         
         try {
             const payload = {
@@ -440,18 +449,18 @@ const Dashboard = () => {
             };
 
             if (thirdPartyForm.type === 'guest') {
-                if (!thirdPartyForm.guest.nom || !thirdPartyForm.guest.prenom) { alert("Veuillez remplir au moins le nom et le prénom de l'invité."); return; }
+                if (!thirdPartyForm.guest.nom || !thirdPartyForm.guest.prenom) { showToast('error', 'Veuillez remplir au moins le nom et le prénom de l\'invité.'); return; }
                 payload.guest_info = thirdPartyForm.guest;
             } else {
-                if (!thirdPartyForm.child.nom || !thirdPartyForm.child.prenom) { alert("Veuillez remplir au moins le nom et le prénom de l'enfant."); return; }
+                if (!thirdPartyForm.child.nom || !thirdPartyForm.child.prenom) { showToast('error', 'Veuillez remplir au moins le nom et le prénom de l\'enfant.'); return; }
                 payload.child_info = thirdPartyForm.child;
             }
 
             await axios.post('/api/register-activity', payload, { headers });
-            alert("Inscription du tiers réussie !");
+            showToast('success', 'Inscription du tiers réussie !');
             setThirdPartyForm({ type: 'guest', guest: { nom: '', prenom: '', email: '', localisation: '', whatsapp: '', telephone: '' }, child: { nom: '', prenom: '', grade: 'Jeunesse A entre 6 et 9 ans' }, payment_method: 'physical' });
             fetchData();
-        } catch (err) { alert(err.response?.data?.message || 'Erreur lors de l\'inscription du tiers'); }
+        } catch (err) { showToast('error', err.response?.data?.message || 'Erreur lors de l\'inscription du tiers'); }
     };
 
 
@@ -1547,9 +1556,9 @@ const Dashboard = () => {
                         try {
                             await axios.post('/api/register-activity', payload, { headers });
                             setSelectedEvent(null);
-                            alert("Opération effectuée avec succès !");
+                            showToast('success', 'Opération effectuée avec succès !');
                             fetchData();
-                        } catch (err) { alert(err.response?.data?.message || 'Erreur lors de l\'opération'); }
+                        } catch (err) { showToast('error', err.response?.data?.message || 'Erreur lors de l\'opération'); }
                     }} 
                 />
             )}
