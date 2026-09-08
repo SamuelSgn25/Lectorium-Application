@@ -46,7 +46,7 @@ const Dashboard = () => {
         centre: 'Centre de ville de Cotonou',
         montant: 25000,
         mode: 'momo',
-        sourceNumber: '+229 01 97 77 03 35',
+        sourceNumber: '',
         receiptPreference: 'email',
         receiptValue: '',
         reference: '',
@@ -56,13 +56,6 @@ const Dashboard = () => {
     const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
     const ALL_SITES = ["Foyer Sole Novo à Djèrègbé", "Centre de ville de Cotonou", "Centre de ville de Lokossa", "Centre de ville de Natitingou", "Centre de ville de Porto-Novo", "Activité en ligne"];
     const ACTIVITY_TYPES = ["Conférence de Renouvellement", "Conférence JR", "Conférence de Noël", "Conférence de l'Ecole Intérieure", "Conférence de l'Ecole Extérieure", "Activité Publique", "Conférence de Jeunesse"];
-    const CENTER_PAYMENT_NUMBERS = {
-        'Centre de ville de Cotonou': '+229 01 59 40 21 24',
-        'Centre de ville de Lokossa': '+229 01 46 16 12 93',
-        'Centre de ville de Natitingou': '+229 01 52 76 39 88',
-        'Centre de ville de Porto-Novo': '+229 01 46 16 12 92',
-        'Foyer Sole Novo à Djèrègbé': '+229 01 59 40 21 25'
-    };
 
     const GRADES = ['Nouveau membre', 'Jeunesse A entre 6 et 9 ans', 'Jeunesse B entre 9 et 12 ans', 'Jeunesse C entre 12 et 15 ans', 'Jeunesse D entre 15 et 18 ans', 'JR entre 18 et 30 ans', '1er aspect', '2ème aspect', '3ème aspect', '4ème aspect', '5ème aspect', '6ème aspect', '7ème aspect', '2ème Aspect', 'Graal', 'ECCLESIA 2014', 'ECCLESIA 2021', 'ECCLESIA 2025', 'ECS'];
 
@@ -81,8 +74,7 @@ const Dashboard = () => {
     const handleCotisationCentreChange = (centre) => {
         setCotisationForm(prev => ({
             ...prev,
-            centre,
-            sourceNumber: CENTER_PAYMENT_NUMBERS[centre] || prev.sourceNumber || '+229 97 77 03 35'
+            centre
         }));
     };
 
@@ -202,11 +194,8 @@ const Dashboard = () => {
             if (userRank !== 'admin' && userRank !== 'super_admin' && userRank !== 'superadmin') setTab('planning');
             setCotisationForm(prev => ({
                 ...prev,
-                sourceNumber: CENTER_PAYMENT_NUMBERS[prev.centre] || prev.sourceNumber || '+229 97 77 03 35',
                 receiptPreference: prev.receiptPreference || (user?.telephone_whatsapp ? 'whatsapp' : 'email'),
-                receiptValue: prev.receiptValue || (user?.role === 'Admin' || user?.role === 'SuperAdmin'
-                    ? (user?.telephone_whatsapp || user?.email || '')
-                    : (user?.telephone_whatsapp || user?.email || ''))
+                receiptValue: prev.receiptValue || (user?.telephone_whatsapp || user?.email || '')
             }));
             fetchData();
         }
@@ -1093,13 +1082,16 @@ const Dashboard = () => {
                                         <div className="space-y-4">
                                             <div>
                                                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Centre de ville</label>
-                                                <select value={cotisationForm.centre} onChange={(e) => setCotisationForm({ ...cotisationForm, centre: e.target.value })} className="w-full p-3 border border-stone-200 bg-white text-sm">
+                                                <select value={cotisationForm.centre} onChange={(e) => handleCotisationCentreChange(e.target.value)} className="w-full p-3 border border-stone-200 bg-white text-sm">
                                                     <option value="Centre de ville de Cotonou">Centre de ville de Cotonou</option>
                                                     <option value="Centre de ville de Lokossa">Centre de ville de Lokossa</option>
                                                     <option value="Centre de ville de Natitingou">Centre de ville de Natitingou</option>
                                                     <option value="Centre de ville de Porto-Novo">Centre de ville de Porto-Novo</option>
                                                     <option value="Foyer Sole Novo à Djèrègbé">Foyer Sole Novo à Djèrègbé</option>
                                                 </select>
+                                                <p className="mt-2 text-[10px] text-stone-500 uppercase tracking-widest">
+                                                    Le centre permet d’orienter le transfert, mais c’est le numéro MoMo de départ que vous renseignez qui déclenche le prélèvement.
+                                                </p>
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Montant</label>
@@ -1113,7 +1105,13 @@ const Dashboard = () => {
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Numéro de départ MTN</label>
-                                                <input type="text" value={cotisationForm.sourceNumber} readOnly className="w-full p-3 border border-stone-200 bg-stone-100 text-sm font-mono" />
+                                                <input
+                                                    type="tel"
+                                                    value={cotisationForm.sourceNumber}
+                                                    onChange={(e) => setCotisationForm({ ...cotisationForm, sourceNumber: e.target.value })}
+                                                    placeholder="Ex. 22997000000"
+                                                    className="w-full p-3 border border-stone-200 bg-white text-sm font-mono"
+                                                />
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Réception du reçu</label>
@@ -1143,15 +1141,24 @@ const Dashboard = () => {
                                         </div>
                                     </div>
 
-                                    <div className="bg-white border border-stone-200 p-6">
-                                        <h3 className="text-sm font-bold text-[#b89047] uppercase tracking-widest mb-4">Numéros de départ affectés par centre</h3>
-                                        <div className="space-y-4 text-sm text-stone-700">
-                                            {Object.entries(CENTER_PAYMENT_NUMBERS).map(([centre, numero]) => (
-                                                <div key={centre} className={`p-4 border ${cotisationForm.centre === centre ? 'bg-[#b89047]/5 border-[#b89047]/40' : 'bg-stone-50 border-stone-200'}`}>
-                                                    <div className="font-bold text-stone-800">{centre}</div>
-                                                    <div className="mt-2">Numéro de départ : {numero}</div>
-                                                </div>
-                                            ))}
+                                    <div className="bg-stone-50 border border-stone-200 p-6 flex flex-col justify-center">
+                                        <h3 className="text-sm font-bold text-[#b89047] uppercase tracking-widest mb-4">Résumé du transfert</h3>
+                                        <div className="space-y-3 text-sm text-stone-700">
+                                            <div className="bg-white border border-stone-200 p-3">
+                                                <div className="text-[10px] uppercase tracking-widest text-stone-500 mb-1">Centre</div>
+                                                <div className="font-bold text-stone-800">{cotisationForm.centre}</div>
+                                            </div>
+                                            <div className="bg-white border border-stone-200 p-3">
+                                                <div className="text-[10px] uppercase tracking-widest text-stone-500 mb-1">Montant</div>
+                                                <div className="font-bold text-stone-800">{Number(cotisationForm.montant || 0).toLocaleString('fr-FR')} FCFA</div>
+                                            </div>
+                                            <div className="bg-white border border-stone-200 p-3">
+                                                <div className="text-[10px] uppercase tracking-widest text-stone-500 mb-1">Numéro de départ</div>
+                                                <div className="font-bold text-stone-800">{cotisationForm.sourceNumber || 'À renseigner'}</div>
+                                            </div>
+                                            <div className="bg-[#b89047]/5 border border-[#b89047]/20 p-3 text-xs text-stone-600">
+                                                Le paiement part du numéro MoMo saisi ci-dessus et est envoyé vers le numéro associé au centre sélectionné.
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
