@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
 import { CheckCircle, X, User, Users as UsersIcon, Baby, MapPin, Smartphone, CreditCard, ShieldCheck } from 'lucide-react';
 
 const ApplicationForm = ({ event, onClose, onSubmit }) => {
@@ -68,9 +69,7 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
         setIsSearching(true);
         setError('');
         try {
-            const res = await fetch(`/api/members/matricule/${mat}`);
-            if (!res.ok) throw new Error("Membre non trouvé");
-            const data = await res.json();
+            const { data } = await axios.get(`/api/members/matricule/${mat}`);
             if (target === 'other_member') {
                 setFoundMember(data);
             } else {
@@ -146,30 +145,22 @@ const ApplicationForm = ({ event, onClose, onSubmit }) => {
                     activity_id: event.id,
                     selected_site: selectedSite,
                     phone_number: momoPhone.replace(/\s+/g, ''),
+                    destination_phone: '+2290159402125',
                     amount: paymentAmount || (event.participation_amounts?.length > 0 ? event.participation_amounts[0].amount : event.price_fcfa),
                     receipt_preference: receiptPreference,
                     motivation: payload.motivation,
                     register_by_matricule: payload.register_by_matricule,
                     child_info: payload.child_info,
                 };
-                const res = await fetch('/api/payments/initiate', {
-                    method: 'POST',
+                const { data } = await axios.post('/api/payments/initiate', initPayload, {
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        Authorization: `Bearer ${localStorage.getItem('token')}`,
                     },
-                    body: JSON.stringify(initPayload),
                 });
-                const data = await res.json();
-                if (!res.ok) {
-                    setError(data.message || "Échec de l'initiation du paiement MTN.");
-                    setLoading(false);
-                    return;
-                }
                 setMtnReference(data.mtn_reference);
                 setPollingState('waiting');
             } catch (err) {
-                setError('Erreur réseau. Veuillez réessayer.');
+                setError(err.response?.data?.message || 'Erreur réseau. Veuillez réessayer.');
                 setLoading(false);
             }
             return;
