@@ -23,6 +23,9 @@ const db = require('./db');
 const { requestToPay, getTransactionStatus } = require('./services/mtnMomoService');
 const { randomUUID } = require('crypto');
 const app = express();
+const normalizePhoneNumber = (value = '') => String(value || '').replace(/\D/g, '');
+const normalizeMatriculeValue = (value = '') => String(value || '').trim().replace(/\\/g, '/').replace(/\s+/g, '').toUpperCase();
+const EXPECTED_MOMO_DESTINATION = normalizePhoneNumber(process.env.MTN_MOMO_DESTINATION_PHONE || '+229 01 59 40 21 25');
 
 app.use(cors());
 app.use(express.json());
@@ -240,16 +243,29 @@ app.post('/api/register', async (req, res) => {
 });
 
 // Look up member by matricule (Public for quick registration)
-app.get('/api/members/matricule/:matricule', async (req, res) => {
+app.get('/api/members/matricule/:matricule/:secondary?', async (req, res) => {
     try {
-        const matricule = (req.params.matricule || '').trim();
-        if (!matricule) return res.status(400).json({ message: 'Matricule requis' });
+        const rawMatricule = req.params.secondary ? `${req.params.matricule}/${req.params.secondary}` : (req.params.matricule || '');
+        const rawNormalized = normalizeMatriculeValue(rawMatricule);
+        if (!rawNormalized) return res.status(400).json({ message: 'Matricule requis' });
+
+        const normalizedCandidates = [
+            rawNormalized,
+            rawNormalized.replace(/\//g, ''),
+            rawNormalized.replace(/-/g, ''),
+            rawNormalized.replace(/\//g, '-'),
+            rawNormalized.replace(/-/g, '/'),
+            rawNormalized.split('/').join(''),
+            rawNormalized.split('/').join('-')
+        ].filter((value, index, arr) => value && arr.indexOf(value) === index);
 
         const member = await db.query(
             `SELECT id, nom, prenom, sexe, centre AS center, grade AS aspect, date_naissance, email, matricule
              FROM users
-             WHERE LOWER(TRIM(matricule)) = LOWER(TRIM($1))`,
-            [matricule]
+             WHERE LOWER(TRIM(matricule)) = ANY($1::text[])
+                OR LOWER(REPLACE(TRIM(matricule), '/', '')) = ANY($2::text[])
+                OR LOWER(REPLACE(TRIM(matricule), '-', '')) = ANY($3::text[])`,
+            [normalizedCandidates.map(v => v.toLowerCase()), normalizedCandidates.map(v => v.toLowerCase()), normalizedCandidates.map(v => v.toLowerCase())]
         );
         if (member.rows.length === 0) return res.status(404).json({ message: 'Matricule non trouvé' });
 
@@ -1045,10 +1061,21 @@ const _sendPaymentReceipt = async ({ userEmail, whatsappPhone, userName, activit
 // POST /api/payments/initiate — Démarre un RequestToPay MTN + crée la registration
 app.post('/api/payments/initiate', auth([]), async (req, res) => {
     try {
-        const { activity_id, selected_site, phone_number, amount, receipt_preference, register_by_matricule, child_info, motivation } = req.body;
+        const { activity_id, selected_site, phone_number, amount, receipt_preference, register_by_matricule, child_info, motivation, destination_phone } = req.body;
 
         if (!phone_number) return res.status(400).json({ message: 'Numéro de téléphone MTN requis' });
         if (!activity_id) return res.status(400).json({ message: 'ID activité requis' });
+
+        const normalizedSourceNumber = normalizePhoneNumber(phone_number);
+        if (!normalizedSourceNumber || normalizedSourceNumber.length < 8) {
+            return res.status(400).json({ message: 'Le numéro de départ MTN est obligatoire et invalide.' });
+        }
+
+        const expectedDestination = normalizePhoneNumber(process.env.MTN_MOMO_DESTINATION_PHONE || '+2290159402125');
+        const providedDestination = normalizePhoneNumber(destination_phone || process.env.MTN_MOMO_DESTINATION_PHONE || '+2290159402125');
+        if (providedDestination && providedDestination !== expectedDestination) {
+            return res.status(400).json({ message: 'Le numéro de destination MTN pour ce type de paiement doit être +229 01 59 40 21 25.' });
+        }
 
         const actQ = await db.query('SELECT * FROM activities WHERE id = $1', [activity_id]);
         if (!actQ.rows.length) return res.status(404).json({ message: 'Activité non trouvée' });
@@ -1085,13 +1112,13 @@ app.post('/api/payments/initiate', auth([]), async (req, res) => {
         const registrationId = regResult.rows[0].id;
 
         await db.query(
-            `INSERT INTO payment_transactions (registration_id, user_id, amount, phone_number, status, mtn_reference, payer_message)
-             VALUES ($1, $2, $3, $4, 'pending', $5, $6)`,
-            [registrationId, req.user.id, payAmount, phone_number, mtnReference, `Inscription ${activity.title}`]
+            `INSERT INTO payment_transactions (registration_id, user_id, amount, phone_number, status, mtn_reference, payer_message, metadata)
+             VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7)`,
+            [registrationId, req.user.id, payAmount, normalizedSourceNumber, mtnReference, `Inscription ${activity.title}`, JSON.stringify({ source_phone: normalizedSourceNumber, destination_phone: providedDestination || expectedDestination })]
         );
 
         const mtnResult = await requestToPay(
-            payAmount, phone_number, mtnReference,
+            payAmount, normalizedSourceNumber, mtnReference,
             `Inscription ${activity.title}`,
             'Lectorium Rosicrucianum Bénin'
         );
