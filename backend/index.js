@@ -242,10 +242,11 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// Look up member by matricule (Public for quick registration)
-app.get('/api/members/matricule/:matricule/:secondary?', async (req, res) => {
+const findMemberByMatricule = async (rawValue, res) => {
     try {
-        const rawMatricule = req.params.secondary ? `${req.params.matricule}/${req.params.secondary}` : (req.params.matricule || '');
+        const rawMatricule = String(rawValue || '').trim();
+        if (!rawMatricule) return res.status(400).json({ message: 'Matricule requis' });
+
         const rawNormalized = normalizeMatriculeValue(rawMatricule);
         if (!rawNormalized) return res.status(400).json({ message: 'Matricule requis' });
 
@@ -267,6 +268,7 @@ app.get('/api/members/matricule/:matricule/:secondary?', async (req, res) => {
                 OR LOWER(REPLACE(TRIM(matricule), '-', '')) = ANY($3::text[])`,
             [normalizedCandidates.map(v => v.toLowerCase()), normalizedCandidates.map(v => v.toLowerCase()), normalizedCandidates.map(v => v.toLowerCase())]
         );
+
         if (member.rows.length === 0) return res.status(404).json({ message: 'Matricule non trouvé' });
 
         const m = member.rows[0];
@@ -281,11 +283,25 @@ app.get('/api/members/matricule/:matricule/:secondary?', async (req, res) => {
             }
         }
 
-        res.json({ ...m, age });
+        return res.json({ ...m, age });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: 'Erreur' });
+        return res.status(500).json({ message: 'Erreur' });
     }
+};
+
+// Look up member by matricule (Public for quick registration)
+app.get('/api/members/matricule', async (req, res) => {
+    await findMemberByMatricule(req.query.matricule || '', res);
+});
+
+app.get('/api/members/matricule/:matricule', async (req, res) => {
+    await findMemberByMatricule(req.params.matricule || '', res);
+});
+
+app.get('/api/members/matricule/:matricule/:secondary', async (req, res) => {
+    const combined = `${req.params.matricule || ''}/${req.params.secondary || ''}`;
+    await findMemberByMatricule(combined, res);
 });
 
 app.post('/api/login', async (req, res) => {
